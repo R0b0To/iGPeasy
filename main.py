@@ -1,7 +1,8 @@
 import requests,json
 from tool_api import iGP_account
+from popup import PopupWindow
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout,QHBoxLayout, QFrame, QLabel,QGridLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton,QHBoxLayout, QFrame, QLabel,QGridLayout
 from PyQt5.QtCore import Qt
 
 def load_accounts():
@@ -17,24 +18,11 @@ def load_accounts():
     return iGP_accounts
 
 
-
-
-def login_accounts():
-    login_data = {"username": "test8@testr.com", "password": "asdqwe123"}
-    account1 = iGP_account(login_data)
-    # Call the login function
-    if account1.login():
-        print("Login successful!")
-        print(account1.car_info())
-    else:
-        print("Login failed. Please check your credentials.")
-
-
 class iGPeasyWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.grid_layout = QGridLayout()
-        #self.valid_accounts = load_accounts()
+        self.valid_accounts = load_accounts()
         self.initUI()
 
     
@@ -88,20 +76,36 @@ class iGPeasyWindow(QWidget):
     def load_drivers(self,driver_data):
         inner_layout  = QGridLayout()
         row = 0
-        for driver in driver_data:
-                inner_layout.addWidget(QLabel('name'),row,0)# 0 is name label
-                inner_layout.addWidget(QLabel('height'),row,1)# 1 is height label
-                inner_layout.addWidget(QLabel('contract'),row,2)# 2 is contract, this will be a button
-                inner_layout.addWidget(QLabel('train'),row,3)# 3 is train this will be a button,
-                inner_layout.addWidget(QLabel('health'),row,4)# 3 is health
+        for driver in driver_data['drivers']:
+                inner_layout.addWidget(QLabel(driver['name']),row,0)# 0 is name label
+                inner_layout.addWidget(QLabel(driver['height']),row,1)# 1 is height label
+                inner_layout.addWidget(QLabel(driver['contract']),row,2)# 2 is contract, (need to add extend contract button)
+                inner_layout.addWidget(QLabel('train'),row,3)# 3 is train this will be a button, open window with the options
+                inner_layout.addWidget(QLabel(driver['health']),row,4)# 3 is health (need to add restore with token)
                 row+=1         
         self.grid_layout.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)
     def load_car(self,car_data):
         inner_layout  = QGridLayout()
         row = 0
-        for driver in car_data:
-                inner_layout.addWidget(QLabel('100'),row,0)# 0 is parts
-                inner_layout.addWidget(QLabel('100'),row,1)# 1 is engine
+        print(car_data)
+        for car in car_data:
+                parts = car['parts']
+                engine = car['engine']
+
+                if int(parts.strip('%')) == 100:
+                    inner_layout.addWidget(QLabel(parts),row,0,Qt.AlignCenter)# 0 is parts need to add repair button
+                else:
+                    button = QPushButton(parts, self)
+                    button.clicked.connect(self.on_parts_clicked)
+                    inner_layout.addWidget(button,row,0)# 0 is parts need to add repair button
+                
+                if int(engine.strip('%')) == 100:              
+                    inner_layout.addWidget(QLabel(engine),row,1,Qt.AlignCenter)# 1 is engine
+                else:
+                    button = QPushButton(parts, self)
+                    button.clicked.connect(self.on_engine_clicked)
+                    inner_layout.addWidget(button,row,1)# 0 is parts need to add repair button
+
                 row+=1         
         self.grid_layout.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
     def load_strategy(self,strategy_data):
@@ -109,7 +113,7 @@ class iGPeasyWindow(QWidget):
         row = 0
         for driver in strategy_data:
                 inner_layout.addWidget(QLabel('race'),row,0)# 0 next race
-                inner_layout.addWidget(QLabel('setup'),row,1)# 1 setup
+                inner_layout.addWidget(QLabel('setup'),row,1)# 1 setup              
                 inner_layout.addWidget(QLabel('strategy'),row,2)# 1 is engine
                 row+=1         
         self.grid_layout.addLayout(inner_layout, self.account_row, 3,alignment=Qt.AlignTop)    
@@ -140,15 +144,15 @@ class iGPeasyWindow(QWidget):
 
         #add row for every new account self.grid_layout
 
-        for account in test_accounts:
+        for account in self.valid_accounts:
    
             inner_layout  = QGridLayout()
-            inner_layout.addWidget(QLabel(account),0,0)
+            inner_layout.addWidget(QLabel(account.username),0,0)
             self.grid_layout.addLayout(inner_layout, self.account_row, 0,alignment=Qt.AlignTop)
             
 
-            self.load_drivers(test_driver)
-            self.load_car(test_driver)
+            self.load_drivers(account.staff_info())
+            self.load_car(account.car_info())
             self.load_strategy(test_driver)
             
             self.account_row+=1
@@ -161,7 +165,15 @@ class iGPeasyWindow(QWidget):
 
         
         self.show()
-        
+    
+    def on_parts_clicked(self):
+        #display available parts and then confirmation
+        popup = PopupWindow()
+        popup.exec_()
+        print('sending request to repair parts')
+    def on_engine_clicked(self):
+        #display available parts and then confirmation
+        print('sending request to repair engine')          
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

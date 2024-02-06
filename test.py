@@ -1,5 +1,18 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QGridLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QDialog, QLabel
+
+class PopupWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle('Popup Window')
+        self.setFixedSize(200, 100)
+
+        layout = QVBoxLayout()
+        label = QLabel('This is a popup window')
+        layout.addWidget(label)
+
+        self.setLayout(layout)
 
 class MyWidget(QWidget):
     def __init__(self):
@@ -8,28 +21,26 @@ class MyWidget(QWidget):
         self.initUI()
 
     def initUI(self):
-        outer_layout = QGridLayout()
+        # Create a QPushButton
+        button = QPushButton('Show Popup', self)
 
-        label1 = QLabel('Label in the 1st row')
-        outer_layout.addWidget(label1, 0, 0)
+        # Connect the button's clicked signal to the show_popup method
+        button.clicked.connect(self.show_popup)
 
-        inner_layout = QGridLayout()
+        # Create a layout and add the button to it
+        layout = QVBoxLayout()
+        layout.addWidget(button)
 
-        label2 = QLabel('Label 1 in the 2nd row')
-        label3 = QLabel('Label 2 in the 2nd row')
-        label4 = QLabel('Label 3 in the 2nd row')
+        # Set the layout for the main window
+        self.setLayout(layout)
 
-        inner_layout.addWidget(label2, 0, 0)
-        inner_layout.addWidget(label3, 0, 1)
-        inner_layout.addWidget(label4, 0, 2)
-
-        outer_layout.addLayout(inner_layout, 0, 1)
-
-        self.setLayout(outer_layout)
-
-        self.setGeometry(300, 300, 400, 200)
-        self.setWindowTitle('PyQt Nested GridLayouts')
+        self.setWindowTitle('Popup Example')
         self.show()
+
+    # Define a method to show the popup window
+    def show_popup(self):
+        popup = PopupWindow(self)
+        popup.exec_()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

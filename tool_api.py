@@ -1,4 +1,5 @@
 import requests
+from bs4 import BeautifulSoup
 
 class iGP_account:
     def __init__(self,account):
@@ -29,12 +30,52 @@ class iGP_account:
     def car_info(self):
          fetch_url = "https://igpmanager.com/index.php?action=fetch&p=cars&csrfName=&csrfToken="
          response = self.session.get(fetch_url)
-         return response.json()['vars']
+         json_data = response.json()['vars']
+         # if c2Hide = 'hide' the manager is in a 1 car league
+
+         car = []
+         soup_engine = BeautifulSoup(json_data['c1Engine'], 'html.parser')
+         soup_parts = BeautifulSoup(json_data['c1Condition'], 'html.parser')
+         soup_total_engine = BeautifulSoup(json_data['totalEngines'], 'html.parser')
+         soup_total_parts = BeautifulSoup(json_data['totalParts'], 'html.parser')
+         car.append ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
+                      'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
+                      'restock':json_data['restockRaces'],
+                      'total_engines':soup_total_engine.text.split(' ')[1],
+                      'total_parts':soup_total_parts.text.split(' ')[1]})
+
+         if json_data['c2Hide'] == 'hide':
+            soup_engine = BeautifulSoup(json_data['c2Engine'], 'html.parser')
+            soup_parts = BeautifulSoup(json_data['c2Condition'], 'html.parser')
+            car.append = ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
+                         'parts':soup_parts.div.div.get('style').split(':')[1].strip()})   
+
+         return car
     def staff_info(self):
          fetch_url = "https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken="
          response = self.session.get(fetch_url)
+         json_data = response.json()['vars']
+
+         driver = []
+         soup_driver = BeautifulSoup(json_data['d1Name'], 'html.parser')
+         soup_driver_info = BeautifulSoup(json_data['d1Info'], 'html.parser')
+         attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
+         driver.append ({'name':soup_driver.find('div').contents[4].strip(),
+                      'health':attributes[12],
+                      'height':attributes[13],
+                      'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}"})
+
+         if json_data['d2Hide'] == 'hide':
+            soup_driver = BeautifulSoup(json_data['d2Name'], 'html.parser')
+            soup_driver_info = BeautifulSoup(json_data['d2Info'], 'html.parser')
+            driver.append ({'name':soup_driver.find('div').contents[4].strip(),
+                      'health':attributes[12],
+                      'height':attributes[13],
+                      'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}"})  
+         
+         staff = {'drivers':driver}
          #to do. parse the attributes?
-         return response.json()['vars']
+         return staff
     def next_race_info(self):
          fetch_url = "https://igpmanager.com/index.php?action=fetch&p=race&csrfName=&csrfToken="
          response = self.session.get(fetch_url)
