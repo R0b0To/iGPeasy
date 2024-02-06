@@ -84,27 +84,25 @@ class iGPeasyWindow(QWidget):
                 inner_layout.addWidget(QLabel(driver['health']),row,4)# 3 is health (need to add restore with token)
                 row+=1         
         self.grid_layout.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)
-    def load_car(self,car_data):
+    def load_car(self,account):
         inner_layout  = QGridLayout()
         row = 0
+        car_data = account.car_info()
         print(car_data)
         for car in car_data:
                 parts = car['parts']
                 engine = car['engine']
 
-                if int(parts.strip('%')) == 100:
-                    inner_layout.addWidget(QLabel(parts),row,0,Qt.AlignCenter)# 0 is parts need to add repair button
-                else:
-                    button = QPushButton(parts, self)
-                    button.clicked.connect(self.on_parts_clicked)
-                    inner_layout.addWidget(button,row,0)# 0 is parts need to add repair button
-                
-                if int(engine.strip('%')) == 100:              
-                    inner_layout.addWidget(QLabel(engine),row,1,Qt.AlignCenter)# 1 is engine
-                else:
-                    button = QPushButton(parts, self)
-                    button.clicked.connect(self.on_engine_clicked)
-                    inner_layout.addWidget(button,row,1)# 0 is parts need to add repair button
+                button = QPushButton(parts, self)
+                inner_layout.addWidget(button,row,0,Qt.AlignCenter)# 0 is parts need to add repair button
+                button.clicked.connect(lambda: self.on_parts_clicked(car,account))
+                if int(parts.strip('%')) == 100: 
+                    button.setEnabled(False)
+                button = QPushButton(engine, self)
+                inner_layout.addWidget(button,row,1,Qt.AlignCenter)# 1 is engine
+                button.clicked.connect(lambda: self.on_engine_clicked(car,account))
+                if int(engine.strip('%')) == 100:
+                    button.setEnabled(False)              
 
                 row+=1         
         self.grid_layout.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
@@ -152,7 +150,7 @@ class iGPeasyWindow(QWidget):
             
 
             self.load_drivers(account.staff_info())
-            self.load_car(account.car_info())
+            self.load_car(account)
             self.load_strategy(test_driver)
             
             self.account_row+=1
@@ -166,14 +164,18 @@ class iGPeasyWindow(QWidget):
         
         self.show()
     
-    def on_parts_clicked(self):
+    def on_parts_clicked(self,car,account):
         #display available parts and then confirmation
-        popup = PopupWindow()
+        print(car)
+        popup = PopupWindow({'type':'parts','data':car,'account':account})
         popup.exec_()
+        
         print('sending request to repair parts')
-    def on_engine_clicked(self):
+    def on_engine_clicked(self,car,account):
         #display available parts and then confirmation
-        print('sending request to repair engine')          
+        print(car)
+        popup = PopupWindow({'type':'engine','data':car,'account':account})
+        popup.exec_()        
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

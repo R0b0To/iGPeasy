@@ -42,14 +42,18 @@ class iGP_account:
                       'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
                       'restock':json_data['restockRaces'],
                       'total_engines':soup_total_engine.text.split(' ')[1],
-                      'total_parts':soup_total_parts.text.split(' ')[1]})
+                      'total_parts':soup_total_parts.text.split(' ')[1],
+                      'id':json_data['c1Id'],
+                      'car_number':1})
 
          if json_data['c2Hide'] == 'hide':
             soup_engine = BeautifulSoup(json_data['c2Engine'], 'html.parser')
             soup_parts = BeautifulSoup(json_data['c2Condition'], 'html.parser')
             car.append = ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
-                         'parts':soup_parts.div.div.get('style').split(':')[1].strip()})   
-
+                         'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
+                         'id':json_data['c2Id'],
+                         'car_number':2})   
+         self.car = car
          return car
     def staff_info(self):
          fetch_url = "https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken="
@@ -85,3 +89,11 @@ class iGP_account:
         #to do
         #send form data with saved strategy
         url = 'https://igpmanager.com/index.php?action=send&type=saveAll&addon=igp&ajax=1&jsReply=saveAll&csrfName=&csrfName=&csrfToken=&csrfToken=&pageId=race'
+    def request_parts_repair(self,car):
+        fetch_url = f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken="
+        response = self.session.get(fetch_url)
+        print(response.json())
+    def request_engine_repair(self,car):
+        fetch_url = f"https://igpmanager.com/index.php?action=send&type=engine&car={car['id']}&btn=%23c{car['car_number']}EngSwap&jsReply=fix&csrfName=&csrfToken="
+        response = self.session.get(fetch_url)
+        print(response.json())
