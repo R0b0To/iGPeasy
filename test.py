@@ -1,48 +1,55 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QDialog, QLabel
 
-class PopupWindow(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.setWindowTitle('Popup Window')
-        self.setFixedSize(200, 100)
-
-        layout = QVBoxLayout()
-        label = QLabel('This is a popup window')
-        layout.addWidget(label)
-
-        self.setLayout(layout)
-
-class MyWidget(QWidget):
+class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-
         self.initUI()
 
     def initUI(self):
-        # Create a QPushButton
-        button = QPushButton('Show Popup', self)
+        self.setWindowTitle('Main Window')
+        self.buttons = []
 
-        # Connect the button's clicked signal to the show_popup method
-        button.clicked.connect(self.show_popup)
+        # Add some example buttons dynamically
+        for i in range(3):
+            button = QPushButton(f'Button {i+1}', self)
+            button.clicked.connect(self.openPopup)
+            self.buttons.append(button)
 
-        # Create a layout and add the button to it
         layout = QVBoxLayout()
-        layout.addWidget(button)
-
-        # Set the layout for the main window
+        for button in self.buttons:
+            layout.addWidget(button)
         self.setLayout(layout)
 
-        self.setWindowTitle('Popup Example')
-        self.show()
-
-    # Define a method to show the popup window
-    def show_popup(self):
-        popup = PopupWindow(self)
+    def openPopup(self):
+        sender_button = self.sender()  # Get the button that was clicked
+        index = self.buttons.index(sender_button)
+        popup = PopupWindow(self, index)
         popup.exec_()
+
+class PopupWindow(QDialog):
+    def __init__(self, parent=None, index=None):
+        super().__init__(parent)
+        self.index = index
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle(f'Popup Window {self.index+1}')
+        self.button = QPushButton('Update Main Button', self)
+        self.button.clicked.connect(self.updateMainButton)
+
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel(f'Enter value for Popup {self.index+1}:'))
+        layout.addWidget(self.button)
+        self.setLayout(layout)
+
+    def updateMainButton(self):
+        new_value = 'New Value'  # Here you can retrieve the value you want
+        self.parent().buttons[self.index].setText(new_value)
+        self.accept()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = MyWidget()
+    mainWindow = MainWindow()
+    mainWindow.show()
     sys.exit(app.exec_())
