@@ -6,10 +6,14 @@ class iGP_account:
         self.session = requests.Session()
         self.username  = account['username']
         self.password  = account['password']
-        
+
+    def init_account(self):
+        self.car = self.car_info()
+        self.staff = self.staff_info()
+        self.strategy = self.next_race_info()
+
     def save_setup_field(self,pyqt_elements):
         self.setups = pyqt_elements
-        print(self.setups)
     def login(self):
         try:
             login_url = "https://igpmanager.com/index.php?action=send&addon=igp&type=login&jsReply=login&ajax=1"
@@ -25,6 +29,7 @@ class iGP_account:
                 print(response.json())
                 if response.json()['status']!= 1:
                     return False
+                self.init_account()
                 return True
             else:
                 print("Login failed. Status code:", response.status_code)
@@ -45,6 +50,8 @@ class iGP_account:
          soup_total_parts = BeautifulSoup(json_data['totalParts'], 'html.parser')
          car.append ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
                       'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
+                      'fuel_economy':json_data['fuel_economyBar'],
+                      'tyre_economy':json_data['tyre_economyBar'],
                       'restock':json_data['restockRaces'],
                       'total_engines':int(soup_total_engine.text.split(' ')[1]),
                       'total_parts':int(soup_total_parts.text.split(' ')[1]),
@@ -60,7 +67,7 @@ class iGP_account:
                          'id':json_data['c2Id'],
                          'car_number':2,
                          'repair_cost':int(re.findall(r'\d+',BeautifulSoup(BeautifulSoup(json_data['c2Btns'], 'html.parser').a['data-tip'],'html.parser').contents[0])[0])})   
-         self.car = car
+        
          return car
     def staff_info(self):
          fetch_url = "https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken="
@@ -85,7 +92,7 @@ class iGP_account:
                       'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}"})  
          
          staff = {'drivers':driver}
-         self.staff = staff
+         
          #to do. parse the attributes?
          return staff
     def next_race_info(self):
@@ -137,7 +144,6 @@ class iGP_account:
                          'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
                          'strat':saved_strat})
 
-        self.strategy = strategy
         return strategy
     def save_strategy(self):
         #to do
