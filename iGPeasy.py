@@ -66,18 +66,13 @@ class iGPeasyWindow(QWidget):
 
                 row+=1         
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
-    
-    ## setup/strategy data
-    def load_strategy(self,account):
-        suspension_dic = {'1':'Soft','2':'Neutral','3':'Firm'} ## remove this
-        def display_strat(full_strategy):
+    def display_strat(self,full_strategy):
             strategy = full_strategy['strat']
             pits = int(full_strategy['pits'])
             
             inner_layout  = QGridLayout()
             column = 1
-            
-            
+
             # [tyre,lap,fuel]
             for arr in strategy[:pits+1]:
                 img_label = QLabel()
@@ -91,9 +86,11 @@ class iGPeasyWindow(QWidget):
                 inner_layout.addWidget(img_label,0,column)
                 inner_layout.addWidget(label,0,column,Qt.AlignCenter)
                 column += 1
-            
-            
             return inner_layout
+    ## setup/strategy data
+    def load_strategy(self,account):
+        suspension_dic = {'1':'Soft','2':'Neutral','3':'Firm'} ## remove this
+        
 
         inner_layout  = QGridLayout()
         row = 0
@@ -105,7 +102,7 @@ class iGPeasyWindow(QWidget):
                     race_text = QLabel(account.strategy[0]['raceName'])
                     race_text.setFixedWidth(100)
                     inner_layout.addWidget(race_text,row,0)# 0 next race
-                    select_box = QComboBox()
+
                     inner_setup_layout  = QGridLayout()
                     ride_field = QLineEdit()
                     ride_field.setInputMask('99')
@@ -129,13 +126,16 @@ class iGPeasyWindow(QWidget):
 
                     button = QPushButton()
                     button.setIcon(QIcon('edit_icon.png'))
-                    button.clicked.connect(lambda: self.on_modify_strategy(account,driver['strat']))
+                    button.clicked.connect(lambda: self.on_modify_strategy(account,driver))
                     inner_layout.addWidget(button,row,2)
                     self.main_window.buttons.append(button)
                     
-                    strategy_grid = display_strat(driver)
-                    driver['pyqt_elemnts'] = strategy_grid
-                    inner_layout.addLayout(strategy_grid,row,3)         
+                    strategy_grid = self.display_strat(driver)
+                    inner_layout.addLayout(strategy_grid,row,3)  
+                    
+                    driver['pyqt_elemnt'] = [inner_layout,strategy_grid,row]
+                    
+                           
                     #inner_layout.addWidget(QLabel(display_strat(driver)),row,2)# 1 is engine
                     row+=1
                     setups_elements.append([select_box,ride_field,aero_field])         
@@ -175,7 +175,6 @@ class iGPeasyWindow(QWidget):
         self.show()
     
     def on_repair_clicked(self,car,account,type):
-        print(self.main_window.buttons)
         sender_button = self.sender()  # Get the button that was clicked
         index = self.main_window.buttons.index(sender_button)
         popup = PopupWindow(self,index,{'type':type,'data':car,'account':account})
@@ -189,6 +188,7 @@ class iGPeasyWindow(QWidget):
                 account.setups[0][0].setCurrentIndex(suggested_setup.suspension)
                 account.setups[0][1].setText(str(suggested_setup.ride))
                 account.setups[0][2].setText(str(suggested_setup.wing))
+                ## if 2 cars 
                 if len(account.setups) > 1:
                     suggested_setup = CarSetup(account.strategy[1]['trackCode'],account.staff['drivers'][1]['height'],account.strategy[0]['tier'])
                     account.setups[1][0].setCurrentIndex(suggested_setup.suspension)

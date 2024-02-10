@@ -26,3 +26,16 @@ class Track():
                         'ru': { 'length': 6.078335, 'wear': 50, 'avg':197.092 },
                         'us': { 'length': 4.60296, 'wear': 65, 'avg':186.568 }}
     self.multipliers = { 100: 1, 75: 1.25, 50: 1.5, 25: 3 }
+  def fuel_calc(f):
+    if f >= 100:
+        return (f ** -0.0792) * 0.652
+    elif f >= 80:
+        return (f ** -0.081) * 0.657
+    elif f >= 60:
+        return (f ** -0.0835) * 0.665
+    elif f >= 40:
+        return (f ** -0.0854) * 0.669
+    elif 20 <= f < 40:
+        return (f ** -0.0886) * 0.678
+    else:
+        return (f ** -0.0947) * 0.69 

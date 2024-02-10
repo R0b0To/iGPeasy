@@ -1,8 +1,9 @@
 from tool_api import iGP_account
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit
 from PyQt5.QtGui import QPixmap, QIcon
 from PyQt5.QtCore import Qt
 from track import Track
+import math
 
 class iGPWindow(QWidget):
     def __init__(self,parent):
@@ -75,8 +76,6 @@ class iGPWindow(QWidget):
         self.main_grid.addLayout(self.init_driver_tab(), 0, 1,alignment=Qt.AlignTop)
         self.main_grid.addLayout(self.init_car_tab()   , 0, 2,alignment=Qt.AlignTop)
         self.main_grid.addLayout(self.init_race_tab()  , 0, 3,alignment=Qt.AlignLeft)
-        
-        
 
 class PopupWindow(QDialog):
     def __init__(self, parent=None, index= None, config=None):
@@ -146,6 +145,7 @@ class PopupWindow(QDialog):
         h = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['H'])
         i = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['M'])
         w = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['M'])
+        
         tyre_SS_text = QLabel(f"{ss}%")
         tyre_S_text = QLabel(f"{s}%")
         tyre_M_text = QLabel(f"{m}%")
@@ -173,27 +173,121 @@ class PopupWindow(QDialog):
         grid_layout.addWidget(tyre_H_text,1,3)
         grid_layout.addWidget(tyre_I_text,1,4)
         grid_layout.addWidget(tyre_W_text,1,5)
+
+        select_box = QComboBox()
+        select_box.addItem("1 pit stop")
+        select_box.addItem("2 pit stops")
+        select_box.addItem("3 pit stops")
+        select_box.addItem("4 pit stops")
+        pits = int(self.data['pits'])
+        select_box.setCurrentIndex((pits)-1)
+        select_box.setFixedWidth(80) 
         
+        def on_pit_box_changed(index):
+            self.data['pits'] = index
+            for i in range(5):
+                if index+1 < i:
+                    for ele in self.elements[i]:
+                        ele.hide()
+                else:
+                    for ele in self.elements[i]:
+                        ele.show()
         
+        select_box.currentIndexChanged.connect(on_pit_box_changed)
         
+
+        def tyre_select():
+            tyre_select_box = QComboBox()
+            for option in ['tyres/SS.png','tyres/S.png','tyres/M.png','tyres/H.png','tyres/I.png','tyres/W.png']:
+                tyre_select_box.addItem(QIcon(option), '',Qt.AlignCenter)
+                tyre_select_box.setMaximumWidth(40)
+            
+               
+            return tyre_select_box    
+
+        stints_grid_layout  = QGridLayout()
+        fuel_lap = int(Track.fuel_calc(self.account.car[0]['fuel_economy']) * Track().info[self.account.strategy[0]['trackCode']]['length'] *100) /100
         layout = QVBoxLayout()
+        stints_grid_layout.addWidget(select_box,0,0,1,2)
+        stints_grid_layout.addWidget(QLabel(f'Fuel/lap: {fuel_lap}'),0,2,1,2,Qt.AlignLeft)
+        stints_grid_layout.addWidget(QLabel('Fuel'),3,0)
+        stints_grid_layout.addWidget(QLabel('Laps'),4,0)
+        
+        tyre_map = {'SS':0,'S':1,'M':2,'H':3,'I':4,'W':5}
+        tyre_map_rev = {0:'SS',1:'S',2:'M',3:'H',4:'I',5:'W'}
+        self.elements = []
+        for index,value in enumerate(range(5), start=1):
+          if index == 1:
+            stint_label = QLabel(f"Start")
+          else:
+            stint_label = QLabel(f"{index-1}")    
+          fuel_field = QLineEdit()
+          fuel_field.setInputMask('999')
+          fuel_field.setMaximumWidth(30)
+          fuel_field.setText(self.data['strat'][index-1][2])
+          laps_label = QLabel(f"{int(int(self.data['strat'][index-1][2])/fuel_lap*100)/100}")
+          tyre_select_ele = tyre_select()
+          
+          def on_tyre_changed(index, column):
+            combobox = self.sender()
+            selected_option = combobox.currentText()
+            print(f"ComboBox at column {column} changed to: {selected_option}")
+            self.data['strat'][column][0] = tyre_map_rev[index]
+          
+          def on_fuel_changed(fuel, column):
+            if fuel != '':
+                laps = (int(int(fuel)/fuel_lap*100)/100)
+                self.elements[column][3].setText(str(laps))
+                print(f"fuel at {column} changed to: {fuel}")
+                self.data['strat'][column][2] = fuel
+                self.data['strat'][column][1] = str(math.floor(laps))
+
+ 
+          
+          tyre_select_ele.currentIndexChanged.connect(lambda index, column=index-1: on_tyre_changed(index,column)) 
+          fuel_field.textChanged.connect(lambda index, column=index-1: on_fuel_changed(index,column)) 
+          tyre_select_ele.setCurrentIndex(tyre_map[self.data['strat'][index-1][0]])
+          stints_grid_layout.addWidget(stint_label,1,index,Qt.AlignLeft)
+          stints_grid_layout.addWidget(tyre_select_ele,2,index,Qt.AlignLeft)
+          stints_grid_layout.addWidget(fuel_field,3,index,Qt.AlignLeft)
+          stints_grid_layout.addWidget(laps_label,4,index,Qt.AlignLeft)
+          self.elements.append([stint_label,tyre_select_ele,fuel_field,laps_label])
+          if index > pits+1:
+             for ele in [stint_label,tyre_select_ele,fuel_field,laps_label]:
+                 ele.hide()
 
         layout.addLayout(grid_layout)
-
-        self.setLayout(layout) 
-            
+        layout.addLayout(stints_grid_layout,Qt.AlignLeft)
+        ## add tyre wear
+        ## add here total laps of the strategy compared to the race
+        confirm_button = QPushButton('Confirm', self)
+        confirm_button.clicked.connect(self.update_main_strategy)
         
+        layout.addWidget(confirm_button,Qt.AlignLeft)
+        self.setLayout(layout) 
+    
+
+    def update_main_strategy(self):
+        new_strat = self.parent().display_strat(self.data)
+        index = self.data['pyqt_elemnt'][2]
+
+        for i in reversed(range(self.data['pyqt_elemnt'][1].count())):
+                self.data['pyqt_elemnt'][1].itemAt(i).widget().deleteLater() 
+
+        self.data['pyqt_elemnt'][1] = new_strat
+        self.data['pyqt_elemnt'][0].addLayout(self.data['pyqt_elemnt'][1], index, 3)
+        self.accept()
+        
+
         # check if repaired
     def update_main_button(self):
 
         if self.type == 'parts':
            self.response = self.account.request_parts_repair(self.data)
            self.account.car[0]['total_parts'] -= self.data['repair_cost']
-            
-
         elif self.type == 'engine':
            self.response = self.account.request_engine_repair(self.data)
-        
+
         new_value = self.response  # Here you can retrieve the value you want
         self.parent().main_window.buttons[self.index].setText(new_value)
         self.parent().main_window.buttons[self.index].setEnabled(False)  
