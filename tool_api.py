@@ -6,6 +6,14 @@ class iGP_account:
         self.session = requests.Session()
         self.username  = account['username']
         self.password  = account['password']
+    def fetch_url(self,fetch_url):
+        response = self.session.get(fetch_url)
+        
+        if 'vars' not in response.json():
+           return 'contract?' 
+        
+        json_data = response.json()['vars']
+        return json_data
 
     def init_account(self):
         self.car = self.car_info()
@@ -69,10 +77,17 @@ class iGP_account:
                          'repair_cost':int(re.findall(r'\d+',BeautifulSoup(BeautifulSoup(json_data['c2Btns'], 'html.parser').a['data-tip'],'html.parser').contents[0])[0])})   
         
          return car
-    def staff_info(self):
-         fetch_url = "https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken="
-         response = self.session.get(fetch_url)
-         json_data = response.json()['vars']
+    
+    def driver_info(self,id):
+        json_data = self.fetch_url( f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
+        contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
+        cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
+        duration= re.findall(r'\d+(?:\.\d+)?', contract)[0]
+        return [duration,cost]
+    
+    
+    def staff_info(self):  
+         json_data = self.fetch_url("https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken=")
 
          driver = []
          soup_driver = BeautifulSoup(json_data['d1Name'], 'html.parser')
@@ -80,7 +95,9 @@ class iGP_account:
          attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
          driver.append ({'name':soup_driver.find('div').contents[4].strip(),
                       'health':attributes[12],
+                      'id':re.findall(r'\d+', soup_driver.a.get('href'))[0],
                       'height':attributes[13],
+                      'salary': f"{soup_driver_info.table.contents[2].contents[1].contents[0].strip()}",
                       'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}"})
 
          if json_data['d2Hide'] == 'hide':
@@ -88,17 +105,18 @@ class iGP_account:
             soup_driver_info = BeautifulSoup(json_data['d2Info'], 'html.parser')
             driver.append ({'name':soup_driver.find('div').contents[4].strip(),
                       'health':attributes[12],
+                      'id':re.findall(r'\d+', soup_driver.a.get('href'))[0],
                       'height':attributes[13],
+                      'salary': f"{soup_driver_info.table.contents[2].contents[1].contents[0].strip()}",
                       'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}"})  
-         
+        
+         # also for the staff?
          staff = {'drivers':driver}
          
          #to do. parse the attributes?
          return staff
     def next_race_info(self):
-        fetch_url = "https://igpmanager.com/index.php?action=fetch&p=race&csrfName=&csrfToken="
-        response = self.session.get(fetch_url)
-        json_data = response.json()['vars']
+        json_data = self.fetch_url("https://igpmanager.com/index.php?action=fetch&p=race&csrfName=&csrfToken=")
         strategy = []
 
         if 'd1FuelOrLaps' not in json_data:
@@ -149,13 +167,127 @@ class iGP_account:
         #to do
         #send form data with saved strategy
         url = 'https://igpmanager.com/index.php?action=send&type=saveAll&addon=igp&ajax=1&jsReply=saveAll&csrfName=&csrfName=&csrfToken=&csrfToken=&pageId=race'
+   
+        d1setup = self.strategy[0]
+        d1strategy = self.strategy[0]['strat']
+        if len(self.strategy)>1:
+            d2setup = self.strategy[1]
+            d2strategy = {
+                           "race": d1setup['raceId'],
+                           "dNum":"1",
+                           "numPits":str(d2setup['pits']),
+                           "tyre1":d2strategy[0][0],
+                           "tyre2":d2strategy[1][0],
+                           "tyre3":d2strategy[2][0],
+                           "tyre4":d2strategy[3][0],
+                           "tyre5":d2strategy[4][0],
+                           "fuel1":d2strategy[0][2],
+                           "laps1":d2strategy[0][1],
+                           "fuel2":d2strategy[1][2],
+                           "laps2":d2strategy[1][1],
+                           "fuel3":d2strategy[2][2],
+                           "laps3":d2strategy[2][1],
+                           "fuel4":d2strategy[3][2],
+                           "laps4":d2strategy[3][1],
+                           "fuel5":d2strategy[4][2],
+                           "laps5":d2strategy[4][1]
+                        }
+            d2strategyAdvanced = {
+                           "pushLevel":"60",
+                           "d1SavedStrategy":"0",
+                           "ignoreAdvancedStrategy":"1",
+                           "advancedFuel":"148",
+                           "rainStartTyre":"I",
+                           "rainStartDepth":"0",
+                           "rainStopTyre":"M",
+                           "rainStopLap":"0"
+                        }
+        else:
+            d2setup = {
+                           "raceId":self.strategy[0]['raceId'],
+                           "suspension":"1",
+                           "ride":"0",
+                           "aero":"0",
+                           "practiceTyre":"SS"
+                        }
+            d2strategy =   {
+                           "race":self.strategy[0]['raceId'],
+                           "dNum":"2",
+                           "numPits":"0",
+                           "tyre1":"{{d2s1Tyre}}",
+                           "tyre2":"{{d2s2Tyre}}",
+                           "tyre3":"{{d2s3Tyre}}",
+                           "tyre4":"{{d2s4Tyre}}",
+                           "tyre5":"{{d2s5Tyre}}"
+                        }
+            d2strategyAdvanced = {
+                           "d2SavedStrategy":"{{d2Saved}}",
+                           "ignoreAdvancedStrategy":"{{d2IgnoreAdvanced}}"
+                        }
+        strat_data =  {"d1setup":
+                       {
+                           "race":d1setup['raceId'],
+                           "rules":"default",
+                           "suspension":str(d1setup['suspension']),
+                           "ride":str(d1setup['ride']),
+                           "aerodynamics":str(d1setup['aero']),
+                           "practiceTyre":"SS"
+                        },
+                        "d2setup":{
+                           "race":d2setup['raceId'],
+                           "suspension":str(d2setup['suspension']),
+                           "ride":str(d2setup['ride']),
+                           "aerodynamics":str(d2setup['aero']),
+                           "practiceTyre":"SS"
+                        },
+                        "d1strategy":{
+                           "race": d1setup['raceId'],
+                           "dNum":"1",
+                           "numPits":str(d1setup['pits']),
+                           "tyre1":d1strategy[0][0],
+                           "tyre2":d1strategy[1][0],
+                           "tyre3":d1strategy[2][0],
+                           "tyre4":d1strategy[3][0],
+                           "tyre5":d1strategy[4][0],
+                           "fuel1":d1strategy[0][2],
+                           "laps1":d1strategy[0][1],
+                           "fuel2":d1strategy[1][2],
+                           "laps2":d1strategy[1][1],
+                           "fuel3":d1strategy[2][2],
+                           "laps3":d1strategy[2][1],
+                           "fuel4":d1strategy[3][2],
+                           "laps4":d1strategy[3][1],
+                           "fuel5":d1strategy[4][2],
+                           "laps5":d1strategy[4][1]
+                        },
+                        "d2strategy":d2strategy,
+                        "d1strategyAdvanced":{
+                           "pushLevel":"60",
+                           "d1SavedStrategy":"1",
+                           "ignoreAdvancedStrategy":"1",
+                           "rainStartTyre":"I",
+                           "rainStartDepth":"0",
+                           "rainStopTyre":"M",
+                           "rainStopLap":"0"
+                        },
+                        "d2strategyAdvanced":{
+                           "d2SavedStrategy":"{{d2Saved}}",
+                           "ignoreAdvancedStrategy":"{{d2IgnoreAdvanced}}"
+                        }
+                    }  
+        good_format =  str(strat_data).replace("'", "\"")
+        print(good_format)
+        response =  self.session.post(url, data=good_format)
+        print(response.text)
+        
     def request_parts_repair(self,car):
-        fetch_url = f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken="
-        response = self.session.get(fetch_url)
+        self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken=")
         return '100%'
     def request_engine_repair(self,car):
-        fetch_url = f"https://igpmanager.com/index.php?action=send&type=engine&car={car['id']}&btn=%23c{car['car_number']}EngSwap&jsReply=fix&csrfName=&csrfToken="
-        response = self.session.get(fetch_url)
+        self.fetch_url( f"https://igpmanager.com/index.php?action=send&type=engine&car={car['id']}&btn=%23c{car['car_number']}EngSwap&jsReply=fix&csrfName=&csrfToken=")
         #to do check response to see if engine was repaired
         return '100%'
-    
+    def extend_contract_driver(self,driver):
+        self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=contract&enact=extend&eType=3&eId={driver['id']}&jsReply=contract&csrfName=&csrfToken=")
+        
+        return '50 races'

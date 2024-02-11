@@ -34,9 +34,12 @@ class iGPeasyWindow(QWidget):
         for driver in account.staff['drivers']:
                 name_text = QLabel(driver['name'])
                 name_text.setFixedWidth(90)
+                extend_contract = QPushButton(driver['contract'])
+                extend_contract.clicked.connect(lambda: self.on_contract_clicked(driver,account,'contract'))
+                self.main_window.buttons.append(extend_contract)
                 inner_layout.addWidget(name_text,row,0)# 0 is name label
                 inner_layout.addWidget(QLabel(driver['height']),row,1)# 1 is height label
-                inner_layout.addWidget(QLabel(driver['contract']),row,2)# 2 is contract, (need to add extend contract button)
+                inner_layout.addWidget(extend_contract,row,2)# 2 is contract, (need to add extend contract button)
                 inner_layout.addWidget(QLabel('train'),row,3)# 3 is train this will be a button, open window with the options
                 inner_layout.addWidget(QLabel(driver['health']),row,4)# 3 is health (need to add restore with token)
                 row+=1         
@@ -179,28 +182,57 @@ class iGPeasyWindow(QWidget):
         index = self.main_window.buttons.index(sender_button)
         popup = PopupWindow(self,index,{'type':type,'data':car,'account':account})
         popup.exec_()
-    
+    def on_contract_clicked(self,driver,account,type):
+        sender_button = self.sender()  # Get the button that was clicked
+        index = self.main_window.buttons.index(sender_button)
+        popup = PopupWindow(self,index,{'type':type,'data':driver,'account':account})
+        popup.exec_()
     def on_setup_clicked(self):  
         for account in self.valid_accounts:
             if account.has_league:
                 suggested_setup = CarSetup(account.strategy[0]['trackCode'],account.staff['drivers'][0]['height'],account.strategy[0]['tier'])
                 
-                account.setups[0][0].setCurrentIndex(suggested_setup.suspension)
-                account.setups[0][1].setText(str(suggested_setup.ride))
-                account.setups[0][2].setText(str(suggested_setup.wing))
+                ride = str(suggested_setup.ride)
+                aero = str(suggested_setup.wing)
+                suspension = suggested_setup.suspension
+                
+                print(suggested_setup.suspension)
+
+                account.setups[0][0].setCurrentIndex(suspension)
+                account.setups[0][1].setText(ride)
+                account.setups[0][2].setText(aero)
+
+                account.strategy[0]['ride'] = ride
+                account.strategy[0]['aero'] = aero
+                
+                account.strategy[0]['suspension'] = suspension +1
+
                 ## if 2 cars 
                 if len(account.setups) > 1:
                     suggested_setup = CarSetup(account.strategy[1]['trackCode'],account.staff['drivers'][1]['height'],account.strategy[0]['tier'])
-                    account.setups[1][0].setCurrentIndex(suggested_setup.suspension)
-                    account.setups[1][1].setText(str(suggested_setup.ride))
-                    account.setups[1][2].setText(str(suggested_setup.wing))
+
+                    ride = str(suggested_setup.ride)
+                    aero = str(suggested_setup.wing)
+                    suspension = suggested_setup.suspension
+
+                    account.setups[1][0].setCurrentIndex(suspension)
+                    account.setups[1][1].setText(ride)
+                    account.setups[1][2].setText(aero)
+
+                    account.strategy[1]['ride'] = ride
+                    account.strategy[1]['aero'] = aero
+                    account.strategy[1]['suspension'] = suspension +1
 
     def on_modify_strategy(self,account,strategy_data):
         sender_button = self.sender()  # Get the button that was clicked
         index = self.main_window.buttons.index(sender_button)
         popup = PopupWindow(self,index,{'type':'strategy','data':strategy_data,'account':account})
         popup.exec_()         
-             
+
+    def on_save_strategy(self):
+       for account in self.valid_accounts:
+            if account.has_league:
+                account.save_strategy()           
                    
 
             

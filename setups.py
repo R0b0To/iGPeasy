@@ -102,7 +102,7 @@ class CarSetup:
         setup['ride'] += scale[self.driver_height][self.tier]
         if setup['ride'] == 0:
           setup['ride']=1
-        if setup['wing'] == 0:
+        if setup['wing'] <= 0:
           setup['wing']=1
         self.suspension =setup['suspension']
         self.ride = setup['ride']

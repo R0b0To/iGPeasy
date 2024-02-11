@@ -57,8 +57,11 @@ class iGPWindow(QWidget):
         inner_layout.addWidget(button_save, 0, 2)
         self.buttons.append(button)
         self.buttons.append(button_save)
-        print (self.parent)
+        
+        button_save.clicked.connect(lambda: self.parent.on_save_strategy())
+
         button.clicked.connect(lambda: self.parent.on_setup_clicked())
+        
         race_text = QLabel('Next')
         race_text.setFixedWidth(100)
         inner_layout.addWidget(race_text,1,0)
@@ -91,6 +94,8 @@ class PopupWindow(QDialog):
             self.init_engine_repair_popup()
         elif self.type == 'strategy':
             self.init_strategy_popup()
+        elif self.type == 'contract':
+            self.init_contract_popup()    
 
         
     def init_parts_popup(self):
@@ -106,6 +111,22 @@ class PopupWindow(QDialog):
         layout.addWidget(button)
         self.setLayout(layout)
     
+    def init_contract_popup(self):
+        self.setWindowTitle('Contract')
+        self.setFixedSize(200, 100)
+        # fetch driver info then extend on confirm
+        layout = QVBoxLayout()
+        label = QLabel(f"{self.data['contract']} - {self.data['salary']}")
+        #label.setAlignment(Qt.AlignCenter)
+        button = QPushButton('extend', self)
+        contract_info = self.account.driver_info(self.data['id'])
+
+        button.clicked.connect(self.update_main_button)
+        layout.addWidget(label)
+        layout.addWidget(QLabel(f"{contract_info[0]} races - New salary: {contract_info[1]}"))
+        layout.addWidget(button)
+        self.setLayout(layout)
+
     def init_engine_repair_popup(self):
         self.setWindowTitle('Parts repair')
         self.setFixedSize(200, 100)
@@ -138,7 +159,12 @@ class PopupWindow(QDialog):
         
         tyreWearFactors = {'SS': 2.14,'S': 1.4,'M': 1,'H': 0.78}
         trackCode = self.account.strategy[0]['trackCode']
-        tier = 100
+        
+        #find tier by total laps
+        tier = Track().info[trackCode][self.account.strategy[0]['raceLaps']]
+        print(tier)
+        
+        
         ss = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['SS'])
         s = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['S'])
         m = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['M'])
@@ -184,7 +210,7 @@ class PopupWindow(QDialog):
         select_box.setFixedWidth(80) 
         
         def on_pit_box_changed(index):
-            self.data['pits'] = index
+            self.data['pits'] = index+1
             for i in range(5):
                 if index+1 < i:
                     for ele in self.elements[i]:
@@ -192,7 +218,7 @@ class PopupWindow(QDialog):
                 else:
                     for ele in self.elements[i]:
                         ele.show()
-        
+            update_total_laps()
         select_box.currentIndexChanged.connect(on_pit_box_changed)
         
 
@@ -208,7 +234,7 @@ class PopupWindow(QDialog):
         stints_grid_layout  = QGridLayout()
         fuel_lap = int(Track.fuel_calc(self.account.car[0]['fuel_economy']) * Track().info[self.account.strategy[0]['trackCode']]['length'] *100) /100
         layout = QVBoxLayout()
-        stints_grid_layout.addWidget(select_box,0,0,1,2)
+        stints_grid_layout.addWidget(select_box,0,0,1,2,Qt.AlignCenter)
         stints_grid_layout.addWidget(QLabel(f'Fuel/lap: {fuel_lap}'),0,2,1,2,Qt.AlignLeft)
         stints_grid_layout.addWidget(QLabel('Fuel'),3,0)
         stints_grid_layout.addWidget(QLabel('Laps'),4,0)
@@ -216,6 +242,7 @@ class PopupWindow(QDialog):
         tyre_map = {'SS':0,'S':1,'M':2,'H':3,'I':4,'W':5}
         tyre_map_rev = {0:'SS',1:'S',2:'M',3:'H',4:'I',5:'W'}
         self.elements = []
+        self.stint_laps = 0
         for index,value in enumerate(range(5), start=1):
           if index == 1:
             stint_label = QLabel(f"Start")
@@ -227,12 +254,24 @@ class PopupWindow(QDialog):
           fuel_field.setText(self.data['strat'][index-1][2])
           laps_label = QLabel(f"{int(int(self.data['strat'][index-1][2])/fuel_lap*100)/100}")
           tyre_select_ele = tyre_select()
+         
+          if index < int(self.data['pits'])+2:
+                    self.stint_laps += int(self.data['strat'][index-1][1])  
+
           
           def on_tyre_changed(index, column):
             combobox = self.sender()
             selected_option = combobox.currentText()
             print(f"ComboBox at column {column} changed to: {selected_option}")
             self.data['strat'][column][0] = tyre_map_rev[index]
+          def update_total_laps():
+            pit = int(self.data['pits'])
+            total_laps = 0     
+            for index, stint in enumerate (self.data['strat'],start=0):
+                if index < pit+1:
+                    total_laps += int(stint[1])       
+
+            self.total_laps.setText(f"{total_laps}/{self.account.strategy[0]['raceLaps']}") 
           
           def on_fuel_changed(fuel, column):
             if fuel != '':
@@ -241,6 +280,7 @@ class PopupWindow(QDialog):
                 print(f"fuel at {column} changed to: {fuel}")
                 self.data['strat'][column][2] = fuel
                 self.data['strat'][column][1] = str(math.floor(laps))
+                update_total_laps()
 
  
           
@@ -262,8 +302,10 @@ class PopupWindow(QDialog):
         ## add here total laps of the strategy compared to the race
         confirm_button = QPushButton('Confirm', self)
         confirm_button.clicked.connect(self.update_main_strategy)
-        
-        layout.addWidget(confirm_button,Qt.AlignLeft)
+        self.total_laps = QLabel(f"{self.stint_laps}/{self.account.strategy[0]['raceLaps']}")
+        self.total_laps.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.total_laps)
+        layout.addWidget(confirm_button)
         self.setLayout(layout) 
     
 
@@ -287,8 +329,10 @@ class PopupWindow(QDialog):
            self.account.car[0]['total_parts'] -= self.data['repair_cost']
         elif self.type == 'engine':
            self.response = self.account.request_engine_repair(self.data)
-
+        elif self.type == 'contract':
+           self.response = self.account.extend_contract_driver(self.data)
         new_value = self.response  # Here you can retrieve the value you want
+        
         self.parent().main_window.buttons[self.index].setText(new_value)
         self.parent().main_window.buttons[self.index].setEnabled(False)  
         self.accept()     
