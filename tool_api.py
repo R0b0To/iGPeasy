@@ -229,7 +229,7 @@ class iGP_account:
                            "aero":"0",
                            "practiceTyre":"SS"
                         }
-            d2strategy =   {
+            d2strategy_c =   {
                            "race":self.strategy[0]['raceId'],
                            "dNum":"2",
                            "numPits":"0",
