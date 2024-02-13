@@ -1,8 +1,9 @@
+import math
 class Track():
   def __init__(self): 
     #last numbers are race laps for each tier  
     self.info = {
-                    'au': { 'length': 5.3017135, 'wear': 40, 'avg':226.1090047, '14':25,'25':50,'37':75,'50':100 },
+                    'au': { 'length': 5.3017135, 'wear': 40, 'avg':226.1090047, '14':25,'28':50,'37':75,'50':100 },
                     'my': { 'length': 5.5358276, 'wear': 80, 'avg':208.879, '13':25,'27':50,'41':75,'55':100 },
                     'cn': { 'length': 5.4417996, 'wear': 80, 'avg':207.975, '13':25,'27':50,'41':75,'55':100 },
                     'bh': { 'length': 4.7273, 'wear': 60, 'avg':184.933, '14':25,'29':50,'44':75,'59':100 },
@@ -40,3 +41,19 @@ class Track():
         return (f ** -0.0886) * 0.678
     else:
         return (f ** -0.0947) * 0.69 
+  
+  #tyre, laps
+  def stint_wear_calc(t,l,trackCode):
+    
+    t = float(t)
+    l = int(l)
+     
+    stint = math.exp(1) ** ((-t / 100 * 1.18) * l) * 100
+    stint2 = (1 - (1 * ((t) + (0.0212 * l - 0.00926) * Track().info[trackCode]['length']) / 100))
+    for j in range(1, l):
+        stint2 *= (1 - (1 * ((t) + (0.0212 * j - 0.00926) * Track().info[trackCode]['length']) / 100))
+    stint2 *= 100
+
+    average = ((stint + stint2) / 2)
+    average = round(average, 2)
+    return str(average)

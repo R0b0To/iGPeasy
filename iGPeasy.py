@@ -31,38 +31,60 @@ class iGPeasyWindow(QWidget):
     def load_drivers(self,account):
         inner_layout  = QGridLayout()
         row = 0
+        print(len(account.staff['drivers']))
+        
         for driver in account.staff['drivers']:
-                name_text = QLabel(driver['name'])
+                name_text = QPushButton(driver['name'],self)
                 name_text.setFixedWidth(90)
-                extend_contract = QPushButton(driver['contract'])
-                extend_contract.clicked.connect(lambda: self.on_contract_clicked(driver,account,'contract'))
+
+                name_text.clicked.connect(lambda: self.on_button_clicked(account))
+                extend_contract = QPushButton(driver['contract'],self)
+                extend_contract.clicked.connect(lambda: self.on_button_clicked(account))
                 self.main_window.buttons.append(extend_contract)
+                self.main_window.buttons.append(name_text)
+
+
+                name_text.setProperty('driver_index',row)
+                name_text.setProperty('type','driver')
+                extend_contract.setProperty('driver_index',row)
+                extend_contract.setProperty('type','contract')
+
+
                 inner_layout.addWidget(name_text,row,0)# 0 is name label
                 inner_layout.addWidget(QLabel(driver['height']),row,1)# 1 is height label
                 inner_layout.addWidget(extend_contract,row,2)# 2 is contract, (need to add extend contract button)
-                inner_layout.addWidget(QLabel('train'),row,3)# 3 is train this will be a button, open window with the options
-                inner_layout.addWidget(QLabel(driver['health']),row,4)# 3 is health (need to add restore with token)
+                #inner_layout.addWidget(QLabel('train'),row,3)# 3 is train this will be a button, open window with the options
+                inner_layout.addWidget(QLabel(driver['health']),row,3)# 3 is health (need to add restore with token)
                 row+=1         
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)
+
     def load_car(self,account):
         inner_layout  = QGridLayout()
         row = 0
+        print(len(account.car))
         for car in account.car:
 
                 parts = car['parts']
                 engine = car['engine']
 
                 button = QPushButton(parts, self)
+                button.setFixedWidth(40)
                 inner_layout.addWidget(button,row,0,Qt.AlignCenter)# 0 is parts need to add repair button
-                button.clicked.connect(lambda: self.on_repair_clicked(car,account,'parts'))
+                button.clicked.connect(lambda: self.on_button_clicked(account))
+                
+                button.setProperty('driver_index',row)
+                button.setProperty('type','parts')
                 
                 self.main_window.buttons.append(button)
                 
                 if int(parts.strip('%')) == 100: 
                     button.setEnabled(False)
                 button = QPushButton(engine, self)
+                button.setFixedWidth(40)
                 inner_layout.addWidget(button,row,1,Qt.AlignCenter)# 1 is engine
-                button.clicked.connect(lambda: self.on_repair_clicked(car,account,'engine'))
+                button.clicked.connect(lambda: self.on_button_clicked(account))
+                button.setProperty('driver_index',row)
+                button.setProperty('type','engine')
                 self.main_window.buttons.append(button)
                 if int(engine.strip('%')) == 100:
                     button.setEnabled(False)              
@@ -92,8 +114,6 @@ class iGPeasyWindow(QWidget):
             return inner_layout
     ## setup/strategy data
     def load_strategy(self,account):
-        suspension_dic = {'1':'Soft','2':'Neutral','3':'Firm'} ## remove this
-        
 
         inner_layout  = QGridLayout()
         row = 0
@@ -121,15 +141,24 @@ class iGPeasyWindow(QWidget):
                     select_box.addItem("Firm")
                     select_box.setCurrentIndex(int(driver['suspension'])-1) #index 0-2
                     select_box.setFixedWidth(60) 
-                    inner_setup_layout.addWidget(select_box,0,1)
-                    inner_setup_layout.addWidget((ride_field),0,2,Qt.AlignLeft)
-                    inner_setup_layout.addWidget((aero_field),0,3,Qt.AlignLeft)
+
+                    next_time = QLabel(account.h_until_next_race())
+                    next_time.setFixedWidth(30) 
+                    inner_setup_layout.addWidget(next_time,0,1)
+                    
+                    inner_setup_layout.addWidget(select_box,0,2)
+                    inner_setup_layout.addWidget((ride_field),0,3,Qt.AlignLeft)
+                    inner_setup_layout.addWidget((aero_field),0,4,Qt.AlignLeft)
                     self.main_window.setups.append(inner_setup_layout)
                     inner_layout.addLayout(inner_setup_layout,row,1)# 1 setup  
 
                     button = QPushButton()
                     button.setIcon(QIcon('edit_icon.png'))
-                    button.clicked.connect(lambda: self.on_modify_strategy(account,driver))
+                    
+                    button.setProperty('driver_index',row)
+                    button.setProperty('type','strategy')
+
+                    button.clicked.connect(lambda: self.on_modify_strategy(account))
                     inner_layout.addWidget(button,row,2)
                     self.main_window.buttons.append(button)
                     
@@ -159,7 +188,10 @@ class iGPeasyWindow(QWidget):
         for account in self.valid_accounts:
    
             inner_layout  = QGridLayout()
-            inner_layout.addWidget(QLabel(account.username),0,0)
+
+            account_text_label = QLabel(account.username)
+            account_text_label.setFixedHeight(22)
+            inner_layout.addWidget(account_text_label,0,0)
             self.main_window.main_grid.addLayout(inner_layout, self.account_row, 0,alignment=Qt.AlignTop)
             
 
@@ -177,16 +209,6 @@ class iGPeasyWindow(QWidget):
         
         self.show()
     
-    def on_repair_clicked(self,car,account,type):
-        sender_button = self.sender()  # Get the button that was clicked
-        index = self.main_window.buttons.index(sender_button)
-        popup = PopupWindow(self,index,{'type':type,'data':car,'account':account})
-        popup.exec_()
-    def on_contract_clicked(self,driver,account,type):
-        sender_button = self.sender()  # Get the button that was clicked
-        index = self.main_window.buttons.index(sender_button)
-        popup = PopupWindow(self,index,{'type':type,'data':driver,'account':account})
-        popup.exec_()
     def on_setup_clicked(self):  
         for account in self.valid_accounts:
             if account.has_league:
@@ -209,7 +231,7 @@ class iGPeasyWindow(QWidget):
 
                 ## if 2 cars 
                 if len(account.setups) > 1:
-                    suggested_setup = CarSetup(account.strategy[1]['trackCode'],account.staff['drivers'][1]['height'],account.strategy[0]['tier'])
+                    suggested_setup = CarSetup(account.strategy[0]['trackCode'],account.staff['drivers'][1]['height'],account.strategy[0]['tier'])
 
                     ride = str(suggested_setup.ride)
                     aero = str(suggested_setup.wing)
@@ -223,18 +245,30 @@ class iGPeasyWindow(QWidget):
                     account.strategy[1]['aero'] = aero
                     account.strategy[1]['suspension'] = suspension +1
 
-    def on_modify_strategy(self,account,strategy_data):
+    def on_modify_strategy(self,account):
         sender_button = self.sender()  # Get the button that was clicked
         index = self.main_window.buttons.index(sender_button)
-        popup = PopupWindow(self,index,{'type':'strategy','data':strategy_data,'account':account})
+        
+        number = sender_button.property('driver_index')
+        type = sender_button.property('type')
+        
+        popup = PopupWindow(self,index,{'type': type,'number':number,'account':account})
         popup.exec_()         
 
     def on_save_strategy(self):
        for account in self.valid_accounts:
             if account.has_league:
                 account.save_strategy()           
-                   
+    def on_button_clicked(self,account):            
+        sender_button = self.sender()  # Get the button that was clicked
+        index = self.main_window.buttons.index(sender_button)
 
+        number = sender_button.property('driver_index')
+        type = sender_button.property('type')
+        print(id, type)
+        
+        popup = PopupWindow(self,index,{'type':type,'account':account,'number':number})
+        popup.exec_()
             
                     
 

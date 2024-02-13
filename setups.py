@@ -1,10 +1,11 @@
 class CarSetup:
     def __init__(self,track_code,height,tier):
-        tier_mapping = {25: 1, 50: 2, 100: 3}
+        tier_mapping = {20: 1, 50: 2, 100: 3}
         self.track_code = track_code
         self.driver_height = (int(height) // 5) * 5
         self.tier = tier_mapping[tier]
         self.suggested_setup = self.const_setup()
+        print(self.driver_height)
 
     def const_setup(self):
         scale = {
@@ -17,7 +18,7 @@ class CarSetup:
 }
         circuits = {
   # rookie
-  '1': {
+  1: {
     'ae': { 'ride': 6, 'wing': 1, 'suspension': 1, 'pit': 23 },
     'at': { 'ride': 4, 'wing': 0, 'suspension': 2, 'pit': 27 },
     'au': { 'ride': 9, 'wing': 4, 'suspension': 1, 'pit': 24 }, 

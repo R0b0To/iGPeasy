@@ -1,4 +1,4 @@
-import requests, re, json
+import requests, re, json, time
 from bs4 import BeautifulSoup
 
 class iGP_account:
@@ -34,7 +34,7 @@ class iGP_account:
             response =  self.session.post(login_url, data=login_data)
             # Check if the login was successful
             if response.ok:
-                print(response.json())
+                print(f"Loading {self.username}")
                 if response.json()['status']!= 1:
                     return False
                 self.init_account()
@@ -51,12 +51,12 @@ class iGP_account:
          json_data = response.json()['vars']
          # if c2Hide = 'hide' the manager is in a 1 car league
 
-         car = []
+         car_list = []
          soup_engine = BeautifulSoup(json_data['c1Engine'], 'html.parser')
          soup_parts = BeautifulSoup(json_data['c1Condition'], 'html.parser')
          soup_total_engine = BeautifulSoup(json_data['totalEngines'], 'html.parser')
          soup_total_parts = BeautifulSoup(json_data['totalParts'], 'html.parser')
-         car.append ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
+         car_list.append ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
                       'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
                       'fuel_economy':json_data['fuel_economyBar'],
                       'tyre_economy':json_data['tyre_economyBar'],
@@ -66,29 +66,43 @@ class iGP_account:
                       'id':json_data['c1Id'],
                       'car_number':1,
                       'repair_cost':int(re.findall(r'\d+',BeautifulSoup(BeautifulSoup(json_data['c1Btns'], 'html.parser').a['data-tip'],'html.parser').contents[0])[0])})
-
-         if json_data['c2Hide'] == 'hide':
+         if json_data['c2Hide'] == '':
             soup_engine = BeautifulSoup(json_data['c2Engine'], 'html.parser')
             soup_parts = BeautifulSoup(json_data['c2Condition'], 'html.parser')
-            car.append = ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
-                         'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
-                         'id':json_data['c2Id'],
-                         'car_number':2,
-                         'repair_cost':int(re.findall(r'\d+',BeautifulSoup(BeautifulSoup(json_data['c2Btns'], 'html.parser').a['data-tip'],'html.parser').contents[0])[0])})   
+            engine = soup_engine.div.div.get('style').split(':')[1].strip()
+            parts = soup_parts.div.div.get('style').split(':')[1].strip()
+            car_list.append({'engine':engine,
+                    'parts':parts,
+                    'id':json_data['c2Id'],
+                    'car_number':2,
+                    'repair_cost':int(re.findall(r'\d+',BeautifulSoup(BeautifulSoup(json_data['c2Btns'], 'html.parser').a['data-tip'],'html.parser').contents[0])[0])})   
         
-         return car
-    
+         return car_list
+    def train_driver(self,id,intensity,category):
+        url =f"https://igpmanager.com/index.php?{id}={category}&action=send&addon=igp&type=train&focus=drivers&jsReply=train&ajax=1&intensity={intensity}&c[]=0&c[]={id}&csrfName=&csrfToken="
+        response = self.session.get(url)
+        response_json = response.json()
+        # update the info bmi color will need to request the driver info
+        self.staff = self.staff_info()
     def driver_info(self,id):
-        json_data = self.fetch_url( f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
+        json_data = self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
         contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
         cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
         duration= re.findall(r'\d+(?:\.\d+)?', contract)[0]
-        return [duration,cost]
+        bmi_color = BeautifulSoup(json_data['sBmi'], 'html.parser').span['class'][1].split('-')[1]
+        return {'contract':{'duration':duration,'cost':cost},'attributes':{'weight':json_data['sWeight'],'bmi_color':bmi_color}}
     
-    
-    def staff_info(self):  
-         json_data = self.fetch_url("https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken=")
+    def h_until_next_race(self):
+       current_timestamp = time.time()
+       difference_seconds = self.next_race - current_timestamp
+       return str(round(difference_seconds / 3600,1))
+     
 
+    def staff_info(self): 
+         response = self.session.get(f"https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken=")
+         response_json = response.json()
+         json_data = response_json['vars'] 
+         self.next_race = response_json['nextLeagueRaceTime']
          driver = []
          soup_driver = BeautifulSoup(json_data['d1Name'], 'html.parser')
          soup_driver_info = BeautifulSoup(json_data['d1Info'], 'html.parser')
@@ -98,18 +112,22 @@ class iGP_account:
                       'id':re.findall(r'\d+', soup_driver.a.get('href'))[0],
                       'height':attributes[13],
                       'salary': f"{soup_driver_info.table.contents[2].contents[1].contents[0].strip()}",
-                      'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}"})
+                      'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}",
+                      'attributes':attributes})
 
-         if json_data['d2Hide'] == 'hide':
+         if json_data['d2Hide'] == '':
             soup_driver = BeautifulSoup(json_data['d2Name'], 'html.parser')
             soup_driver_info = BeautifulSoup(json_data['d2Info'], 'html.parser')
+            attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
             driver.append ({'name':soup_driver.find('div').contents[4].strip(),
                       'health':attributes[12],
                       'id':re.findall(r'\d+', soup_driver.a.get('href'))[0],
                       'height':attributes[13],
                       'salary': f"{soup_driver_info.table.contents[2].contents[1].contents[0].strip()}",
-                      'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}"})  
+                      'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}",
+                      'attributes':attributes})  
         
+
          # also for the staff?
          staff = {'drivers':driver}
          
@@ -171,8 +189,9 @@ class iGP_account:
         d1setup = self.strategy[0]
         d1strategy = self.strategy[0]['strat']
         if len(self.strategy)>1:
+            d2strategy = self.strategy[1]['strat']
             d2setup = self.strategy[1]
-            d2strategy = {
+            d2strategy_c = {
                            "race": d1setup['raceId'],
                            "dNum":"1",
                            "numPits":str(d2setup['pits']),
@@ -234,7 +253,7 @@ class iGP_account:
                            "practiceTyre":"SS"
                         },
                         "d2setup":{
-                           "race":d2setup['raceId'],
+                           "race":d1setup['raceId'],
                            "suspension":str(d2setup['suspension']),
                            "ride":str(d2setup['ride']),
                            "aerodynamics":str(d2setup['aero']),
@@ -260,7 +279,7 @@ class iGP_account:
                            "fuel5":d1strategy[4][2],
                            "laps5":d1strategy[4][1]
                         },
-                        "d2strategy":d2strategy,
+                        "d2strategy":d2strategy_c,
                         "d1strategyAdvanced":{
                            "pushLevel":"60",
                            "d1SavedStrategy":"1",
@@ -270,15 +289,13 @@ class iGP_account:
                            "rainStopTyre":"M",
                            "rainStopLap":"0"
                         },
-                        "d2strategyAdvanced":{
-                           "d2SavedStrategy":"{{d2Saved}}",
-                           "ignoreAdvancedStrategy":"{{d2IgnoreAdvanced}}"
-                        }
+                        "d2strategyAdvanced":d2strategyAdvanced
                     }  
         good_format =  str(strat_data).replace("'", "\"")
         print(good_format)
         response =  self.session.post(url, data=good_format)
-        print(response.text)
+        print(f"saved strategy for: ",self.username)
+
         
     def request_parts_repair(self,car):
         self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken=")
