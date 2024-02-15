@@ -119,6 +119,43 @@ class PopupWindow(QDialog):
                         }
         if self.type in init_functions:
             init_functions[self.type]()      
+    def on_save_pressed(self):
+        def hash_code(string):
+            hash_value = 0
+            for char in string:
+                code = ord(char)
+                hash_value = ((hash_value << 5) - hash_value) + code
+                hash_value = hash_value & 0xffffffff  # Convert to 32-bit integer
+            return hash_value
+        tyre_map_rev = {0:'SS',1:'S',2:'M',3:'H',4:'I',5:'W'}
+        pit_stop = self.strategy_pits.currentIndex()+1
+        save = {'stints':{},
+                "length": str(self.tier) ,
+                "track": str(self.trackCode),
+                "laps": {
+                    "total": int(self.account.strategy[0]['raceLaps']),
+                    "doing": 0
+                }}
+        doing_laps = 0
+        for i in range(pit_stop+1):
+            lap = math.floor(float(self.elements[i][3].text()))
+            doing_laps+=lap
+            tyre =  f"ts-{tyre_map_rev[self.elements[i][1].currentIndex()]}"
+            save['stints'][str(i)] = {'tyre':tyre,'laps':str(lap),'push':3}
+        save['laps']['doing'] = int(doing_laps)
+        print('strategy saved')
+        save_id = hash_code(str(save))
+        
+        
+        with open('save.json', 'r') as json_file:
+            save_list = json.load(json_file)
+        
+        save_list['save'][self.trackCode][save_id] = save   
+        
+        with open('save.json', 'w') as f:
+            json.dump(save_list, f)    
+
+    
     def on_load_pressed(self):
         strategy_popup = PopupWindow(self,optional=self.valid_strat_layouts)
         strategy_popup.exec_()
@@ -139,7 +176,6 @@ class PopupWindow(QDialog):
         self.accept()
         strategy_window = self.parent()
         strategy_to_load = self.sender().property('strat')
-        print(strategy_to_load)
         strategy_window.strategy_pits.setCurrentIndex(strategy_to_load['pits']-1)
         
         tyre_map = {'SS':0,'S':1,'M':2,'H':3,'I':4,'W':5}
@@ -147,7 +183,7 @@ class PopupWindow(QDialog):
 
         for i,stint in enumerate(strategy_to_load['strat']):
             stint_fuel = int(stint[1]) * strategy_window.fuel_lap
-            print(stint_fuel)
+            ## to be replaced by self.elements[]
             strategy_window.stint_fuel[i].setValue(math.ceil(stint_fuel))
             strategy_window.stint_tyre[i].setCurrentIndex(tyre_map[stint[0]])
 
@@ -522,10 +558,10 @@ class PopupWindow(QDialog):
         
         tyreWearFactors = {'SS': 2.14,'S': 1.4,'M': 1,'H': 0.78}
         trackCode = self.account.strategy[0]['trackCode']
-        
+        self.trackCode = trackCode
         #find tier by total laps
-        tier = Track().info[trackCode][self.account.strategy[0]['raceLaps']]
-        calculation = (1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier]
+        self.tier = Track().info[trackCode][self.account.strategy[0]['raceLaps']]
+        calculation = (1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[self.tier ]
         ss = "{:.1f}".format(calculation * tyreWearFactors['SS'])
         s = "{:.1f}".format(calculation * tyreWearFactors['S'])
         m = "{:.1f}".format(calculation * tyreWearFactors['M'])
@@ -577,7 +613,6 @@ class PopupWindow(QDialog):
         
         def on_pit_box_changed(index):
             car_strategy['pits'] = index+1
-            print('changed to',index+1)
             for i in range(5):
                 if index+1 < i:
                     for ele in self.elements[i]:
@@ -626,13 +661,14 @@ class PopupWindow(QDialog):
 
         
         save_button = QPushButton('save')
-        save_button.setDisabled(True)
+        #save_button.setDisabled(True)
         load_button = QPushButton('load')
         save_button.setFixedWidth(40)
         load_button.setFixedWidth(40)
         stints_grid_layout.addWidget(save_button,1,0)
         stints_grid_layout.addWidget(load_button,2,0)
-
+        save_button.clicked.connect(self.on_save_pressed)
+        load_button.clicked.connect(self.on_load_pressed)
         #try to read strategies from file save.json
         with open('save.json', 'r') as json_file:
             save_list = json.load(json_file)['save']
@@ -662,7 +698,7 @@ class PopupWindow(QDialog):
         else:
             load_button.setDisabled(True)
 
-        load_button.clicked.connect(self.on_load_pressed)    
+            
         stints_grid_layout.addWidget(QLabel('Fuel'),3,0)
         stints_grid_layout.addWidget(QLabel('Laps'),4,0)
         stints_grid_layout.addWidget(QLabel('Wear'),5,0)
@@ -693,6 +729,7 @@ class PopupWindow(QDialog):
           wear_label = QLabel(f"{Track.stint_wear_calc(tyre_map_text[selected_tyre],car_strategy['strat'][index-1][1],self.account.strategy[0]['trackCode'])}")
           
           tyre_select_ele = tyre_select()
+         
           self.stint_tyre.append(tyre_select_ele)
           if index < int(car_strategy['pits'])+2:
                     self.stint_laps += int(car_strategy['strat'][index-1][1])  
@@ -736,6 +773,7 @@ class PopupWindow(QDialog):
           stints_grid_layout.addWidget(laps_label,4,index,Qt.AlignLeft)
           
           stints_grid_layout.addWidget(wear_label,5,index,Qt.AlignLeft)
+          ## saving strategy elements ---------------------------------------------------<<<
           self.elements.append([stint_label,tyre_select_ele,fuel_field,laps_label,wear_label])
           
          
@@ -764,7 +802,7 @@ class PopupWindow(QDialog):
             if radio_button.isChecked():
                 intensity = int(radio_button.text())
                 break
-        print(self.sender().text())
+
         train_type_map = {'Driving':'ability','Mental':'mental','Physical':'physical','All':'all'} 
         train_type = self.sender().text()
         print(f"{driver['id']} training {train_type} x{intensity}")
