@@ -51,17 +51,26 @@ class iGPeasyWindow(QWidget):
 
 
                 inner_layout.addWidget(name_text,row,0)# 0 is name label
-                inner_layout.addWidget(QLabel(driver['height']),row,1)# 1 is height label
-                inner_layout.addWidget(extend_contract,row,2)# 2 is contract, (need to add extend contract button)
+                #inner_layout.addWidget(QLabel(driver['height']),row,1)# 1 is height label
+                inner_layout.addWidget(extend_contract,row,1)# 2 is contract, (need to add extend contract button)
                 #inner_layout.addWidget(QLabel('train'),row,3)# 3 is train this will be a button, open window with the options
-                inner_layout.addWidget(QLabel(driver['health']),row,3)# 3 is health (need to add restore with token)
+                #inner_layout.addWidget(QLabel(driver['health']),row,3)# 3 is health (need to add restore with token)
                 row+=1         
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)
-
+    def load_research(self,account):
+        inner_layout  = QGridLayout() 
+        button = QPushButton('Res', self)
+        button.setFixedWidth(50)
+        inner_layout.addWidget(button,0,2)
+        self.main_window.buttons.append(button)
+        button.setProperty('type','research')
+        button.clicked.connect(lambda: self.on_modify_research(account))
+        #self.main_window.buttons.append(button)
+        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
+    
     def load_car(self,account):
         inner_layout  = QGridLayout()
         row = 0
-        print(len(account.car))
         for car in account.car:
 
                 parts = car['parts']
@@ -90,7 +99,7 @@ class iGPeasyWindow(QWidget):
                     button.setEnabled(False)              
 
                 row+=1         
-        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
+        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 3,alignment=Qt.AlignTop)
     def display_strat(self,full_strategy):
             strategy = full_strategy['strat']
             pits = int(full_strategy['pits'])
@@ -171,11 +180,11 @@ class iGPeasyWindow(QWidget):
                     #inner_layout.addWidget(QLabel(display_strat(driver)),row,2)# 1 is engine
                     row+=1
                     setups_elements.append([select_box,ride_field,aero_field])         
-            self.main_window.main_grid.addLayout(inner_layout, self.account_row, 3,Qt.AlignLeft)
+            self.main_window.main_grid.addLayout(inner_layout, self.account_row, 4,Qt.AlignLeft)
             account.save_setup_field(setups_elements)    
 
     def initUI(self):
-
+        self.setWindowTitle('iGPeasy')
         self.setLayout(self.main_window.main_grid)
         
         driver_rows = 2
@@ -196,7 +205,9 @@ class iGPeasyWindow(QWidget):
             
 
             self.load_drivers(account)
+        
             self.load_car(account)
+            self.load_research(account)
             self.load_strategy(account)
             self.account_row+=1
             
@@ -269,8 +280,12 @@ class iGPeasyWindow(QWidget):
         
         popup = PopupWindow(self,index,{'type':type,'account':account,'number':number})
         popup.exec_()
-            
-                    
+    def on_modify_research(self,account):        
+        sender_button = self.sender()  # Get the button that was clicked
+        index = self.main_window.buttons.index(sender_button)
+        type = sender_button.property('type')
+        popup = PopupWindow(self,index,{'type':type,'account':account,'number':0})
+        popup.exec_()          
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

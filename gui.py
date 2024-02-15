@@ -1,5 +1,5 @@
 from tool_api import iGP_account
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt5.QtGui import QPixmap, QIcon
 from PyQt5.QtCore import Qt
 from track import Track
@@ -34,10 +34,10 @@ class iGPWindow(QWidget):
         driver_header.setFixedWidth(90)
         inner_layout.addWidget(driver_header, 0, 0)
         inner_layout.addWidget(QLabel('Name'),1,0)
-        inner_layout.addWidget(QLabel('Height'),1,1)
-        inner_layout.addWidget(QLabel('Contract'),1,2)
+        #inner_layout.addWidget(QLabel('Height'),1,1)
+        inner_layout.addWidget(QLabel('Contract'),1,1)
         #inner_layout.addWidget(QLabel('Train'),1,3)
-        inner_layout.addWidget(QLabel('Health'),1,3)
+        #inner_layout.addWidget(QLabel('Health'),1,3)
         self.driver_tab = inner_layout
         return inner_layout
     def init_car_tab(self):
@@ -47,6 +47,13 @@ class iGPWindow(QWidget):
         inner_layout.addWidget(QLabel('Engine'),1,1)
         self.car_tab = inner_layout
         return inner_layout
+    def init_research_tab(self):
+        inner_layout  = QGridLayout()
+        inner_layout.addWidget(QLabel('Research'), 0, 0)
+        inner_layout.addWidget(QLabel(''), 0, 1)
+        self.research_tab = inner_layout
+        return inner_layout
+
     def init_race_tab(self):
         inner_layout  = QGridLayout()
         inner_layout.addWidget(QLabel('Race'), 0, 0,)
@@ -81,8 +88,9 @@ class iGPWindow(QWidget):
         self.setWindowTitle("iGPeasy")
         self.main_grid.addLayout(self.init_accout_tab(), 0, 0,alignment=Qt.AlignTop)
         self.main_grid.addLayout(self.init_driver_tab(), 0, 1,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_car_tab()   , 0, 2,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_race_tab()  , 0, 3,alignment=Qt.AlignLeft)
+        self.main_grid.addLayout(self.init_research_tab(), 0, 2,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_car_tab()   , 0, 3,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_race_tab()  , 0, 4,alignment=Qt.AlignLeft)
 
 class PopupWindow(QDialog):
     def __init__(self, parent=None, index= None, config=None):
@@ -91,17 +99,16 @@ class PopupWindow(QDialog):
         self.type = config['type']
         self.account = config['account']
         self.index = index
-
-        if self.type == 'parts':
-            self.init_parts_popup()
-        elif self.type == 'engine':
-            self.init_engine_repair_popup()
-        elif self.type == 'strategy':
-            self.init_strategy_popup()
-        elif self.type == 'contract':
-            self.init_contract_popup()
-        elif self.type == 'driver':
-            self.init_driver_popup()      
+        init_functions ={
+                         'parts': self.init_parts_popup,
+                         'engine': self.init_engine_repair_popup,
+                         'strategy': self.init_strategy_popup,
+                         'contract': self.init_contract_popup,
+                         'driver': self.init_driver_popup,
+                         'research': self.init_research_popup
+                        }
+        if self.type in init_functions:
+            init_functions[self.type]()      
 
         
     def init_parts_popup(self):
@@ -116,6 +123,167 @@ class PopupWindow(QDialog):
         layout.addWidget(label)
         layout.addWidget(button)
         self.setLayout(layout)
+    
+
+    def points_handler(self):
+        new_total_points = sum(spinbox.value() for spinbox in self.spinboxes)
+        sender_spinbox = self.sender()
+
+        if new_total_points <= self.car_total_points:
+            # Disconnect the signal to prevent recursive calls
+            sender_spinbox.textChanged.disconnect()
+            last_value = sender_spinbox.value() - 1
+            sender_spinbox.setValue(last_value)
+
+            sender_spinbox.textChanged.connect(self.points_handler)
+            self.points += 1
+            self.points_label.setText(str(self.points)) 
+
+            self.old_total_points = new_total_points
+
+            return 
+        elif new_total_points < self.old_total_points: 
+            self.points += 1 
+            self.points_label.setText(str(self.points)) 
+        else: 
+            if self.points > 0:
+                self.points -= 1
+                self.points_label.setText(str(self.points)) 
+            else:
+                sender_spinbox.textChanged.disconnect()
+                last_value = sender_spinbox.value() - 1
+                sender_spinbox.setValue(last_value)
+                sender_spinbox.textChanged.connect(self.points_handler)
+
+        self.old_total_points = new_total_points
+
+        for i, gap in enumerate(self.gaps):
+            gap.setText(str(int(self.best[i].text()) - self.spinboxes[i].value()))
+        self.calculate_points_gain()
+    
+    def calculate_points_gain(self):
+        for i,attribute in enumerate(self.gains):
+            if self.is_checked[i]:
+                attribute.setText(str(math.ceil(max(0, int(self.gaps[i].text()))*self.power/100)))
+            else:
+                attribute.setText('0')
+        self.power_label.setText(str(self.power))            
+    def checkbox_changed(self,state):
+        checkbox_index = self.sender().property('index')
+        if state == Qt.Checked:
+            self.is_checked[checkbox_index] = True
+        else:
+            self.is_checked[checkbox_index] = False
+        check_count   = max(1,self.is_checked.count(True)) 
+        self.power = self.max_power/check_count   
+        self.calculate_points_gain()
+    def init_research_popup(self):
+        
+        self.setWindowTitle('research')
+        inner_layout  = QGridLayout()
+        layout = QVBoxLayout()
+        
+        #{'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':research_power}
+        research_data = self.account.research_info()
+        self.options = []
+        self.total_points = 200
+        self.remaining_points = self.total_points
+        self.points_label = QLabel(research_data['points'])
+        inner_layout.addWidget(self.points_label,0,0)
+        inner_layout.addWidget(QLabel('You'),0,1)
+        inner_layout.addWidget(QLabel('Gap'),0,2)
+        inner_layout.addWidget(QLabel('Best'),0,3)
+        self.is_checked = research_data['check']
+        check_count = self.is_checked.count(True)
+        self.checked = check_count
+        self.max_power = research_data['research_power']
+        self.power = self.max_power /check_count
+        self.points = int(research_data['points'])
+        self.power_label = QLabel(str(self.power))
+        inner_layout.addWidget(self.power_label,0,5)
+        checkboxes = []
+        self.spinboxes = []
+        self.gaps = []
+        self.best = []
+        self.gains = []
+        #can't go below this
+        original_spinboxes_value = []
+        self.car_total_points = 0
+        for i, key in enumerate(['acceleration', 'braking', 'cooling', 'downforce', 'fuel economy', 'handling', 'reliability', 'tyre economy']):
+            
+            spin_box = QSpinBox()
+            line_best = QLineEdit()
+            line_gap = QLineEdit()
+            line_gain= QLineEdit()
+            checkbox = QCheckBox()
+            
+            for widget in [line_best, line_gap, line_gain, spin_box.lineEdit()]:
+                    widget.setReadOnly(True)
+            
+            checkbox.setChecked(research_data['check'][i])
+            line_best.setAlignment(Qt.AlignCenter)
+            line_gain.setAlignment(Qt.AlignCenter)
+            line_gap.setAlignment(Qt.AlignCenter)
+            #spin_box.setProperty('index',i)
+            #line_gap.setProperty('index',i)
+            checkbox.setProperty('index',i)
+            gap = research_data['teams_design'][i] - int(research_data['car_design'][i])
+            line_gap.setText(str(gap))
+            line_best.setText(str(research_data['teams_design'][i]))
+            
+            if research_data['check'][i]:
+                line_gain.setText(str(math.ceil(gap*self.power/100)))
+            else:
+                line_gain.setText('0')
+            
+            spin_box.setProperty("class", "dual-arrows")
+            
+            spin_box.setFixedWidth(100)
+            spin_box.setMaximum(int(research_data['max']))
+            spin_box.setAlignment(Qt.AlignCenter) 
+            attribute = int(research_data['car_design'][i])
+            spin_box.setMinimum(attribute)
+            spin_box.setValue(attribute)
+            self.car_total_points += attribute
+            #spin_box.valueChanged.connect(self.update_points)
+            self.options.append((spin_box))
+            inner_layout.addWidget(QLabel(key),i+1,0)
+            inner_layout.addWidget(spin_box,i+1,1)
+            inner_layout.addWidget(line_gap,i+1,2)
+            inner_layout.addWidget(line_best,i+1,3)
+            inner_layout.addWidget(checkbox,i+1,4)
+            inner_layout.addWidget(line_gain,i+1,5)
+            spin_box.textChanged.connect(self.points_handler)
+            checkbox.stateChanged.connect(self.checkbox_changed)
+            checkboxes.append(checkbox)
+            self.spinboxes.append(spin_box)
+            self.gaps.append(line_gap)
+            self.best.append(line_best)
+            self.gains.append(line_gain)
+        self.old_total_points = self.car_total_points
+        self.setStyleSheet("""
+             QSpinBox {
+              
+                text-align: center;
+            }
+            QSpinBox::up-button {
+                min-width: 24px;
+                min-height: 24px;
+                subcontrol-origin: margin;
+                subcontrol-position: right;
+              
+               
+            }
+            QSpinBox::down-button {
+                min-width: 24px;
+                min-height: 24px;
+                subcontrol-origin: margin;
+                subcontrol-position: left;
+
+            }
+        """)
+        self.setLayout(inner_layout)
+
     def init_driver_popup(self):
         self.setWindowTitle('training') 
         #self.setFixedSize(400, 100)
@@ -252,13 +420,13 @@ class PopupWindow(QDialog):
         
         #find tier by total laps
         tier = Track().info[trackCode][self.account.strategy[0]['raceLaps']]
-
-        ss = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['SS'])
-        s = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['S'])
-        m = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['M'])
-        h = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['H'])
-        i = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['M'])
-        w = "{:.1f}".format((1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier] * tyreWearFactors['M'])
+        calculation = (1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[tier]
+        ss = "{:.1f}".format(calculation * tyreWearFactors['SS'])
+        s = "{:.1f}".format(calculation * tyreWearFactors['S'])
+        m = "{:.1f}".format(calculation * tyreWearFactors['M'])
+        h = "{:.1f}".format(calculation * tyreWearFactors['H'])
+        i = "{:.1f}".format(calculation * tyreWearFactors['M'])
+        w = "{:.1f}".format(calculation * tyreWearFactors['M'])
         
         tyre_SS_text = QLabel(f"{ss}%")
         tyre_S_text = QLabel(f"{s}%")
@@ -319,11 +487,31 @@ class PopupWindow(QDialog):
             tyre_select_box = QComboBox()
             for option in ['tyres/SS.png','tyres/S.png','tyres/M.png','tyres/H.png','tyres/I.png','tyres/W.png']:
                 tyre_select_box.addItem(QIcon(option), '',Qt.AlignCenter)
-                tyre_select_box.setMaximumWidth(40)
+                tyre_select_box.setFixedWidth(50)
             
                
             return tyre_select_box    
+        self.setStyleSheet("""
+             QSpinBox {
+              
+                text-align: center;
+            }
+            QSpinBox::up-button {
+                min-width: 5px;
+                min-height: 24px;
+                subcontrol-origin: margin;
+                subcontrol-position: right;
+              
+               
+            }
+            QSpinBox::down-button {
+                min-width: 5px;
+                min-height: 24px;
+                subcontrol-origin: margin;
+                subcontrol-position: left;
 
+            }
+        """)
         stints_grid_layout  = QGridLayout()
         fuel_lap = int(Track.fuel_calc(self.account.car[0]['fuel_economy']) * Track().info[self.account.strategy[0]['trackCode']]['length'] *100) /100
         layout = QVBoxLayout()
@@ -344,10 +532,13 @@ class PopupWindow(QDialog):
             stint_label = QLabel(f"Start")
           else:
             stint_label = QLabel(f"{index-1}")    
-          fuel_field = QLineEdit()
-          fuel_field.setInputMask('999')
-          fuel_field.setMaximumWidth(30)
-          fuel_field.setText(car_strategy['strat'][index-1][2])
+          
+          
+          fuel_field = QSpinBox()
+          #fuel_field.setInputMask('999')
+          fuel_field.setFixedWidth(50)
+          fuel_field.setAlignment(Qt.AlignCenter)
+          fuel_field.setValue(int(car_strategy['strat'][index-1][2]))
           laps_label = QLabel(f"{int(int(car_strategy['strat'][index-1][2])/fuel_lap*100)/100}")
           
           wear_label = QLabel(f"{Track.stint_wear_calc(tyre_map_text[selected_tyre],car_strategy['strat'][index-1][1],self.account.strategy[0]['trackCode'])}")
@@ -417,7 +608,7 @@ class PopupWindow(QDialog):
         self.setLayout(layout) 
     
     def train_driver(self):
-        driver = self.account.staff['drivers'][self.numbers]
+        driver = self.account.staff['drivers'][self.number]
         for radio_button in self.radio_buttons:
             if radio_button.isChecked():
                 intensity = int(radio_button.text())

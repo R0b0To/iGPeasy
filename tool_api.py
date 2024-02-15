@@ -19,6 +19,32 @@ class iGP_account:
         self.car = self.car_info()
         self.staff = self.staff_info()
         self.strategy = self.next_race_info()
+    def research_info(self):
+        research_display = self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=research&csrfName=&csrfToken=")
+        car_overview= self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=design&csrfName=&csrfToken=")
+        points = car_overview['designPts']
+        max_design = car_overview['dMax']
+        
+        car_design = [car_overview[key] for key in ['acceleration', 'braking', 'cooling', 'downforce', 'fuel_economy', 'handling', 'reliability', 'tyre_economy']]
+
+        tier_factor = 2 if max_design == 200 else 1
+
+        research_power = research_display['researchMaxEffect']
+        # remember tier have different max 
+
+        def parse_best(attribute):
+            return int(BeautifulSoup(research_display[attribute],'html.parser').img.get('style').split('calc(')[1].split('%')[0]) * tier_factor
+        
+        def is_checked(key):
+            if BeautifulSoup(research_display[key],'html.parser').input.get('checked') is not None:
+                return True
+            else: 
+                return False
+        teams_design = [parse_best(key) for key in ['accelerationRating','brakingRating','coolingRating','downforceRating','fuel_economyRating','handlingRating','reliabilityRating','tyre_economyRating']]
+        checked_design = [is_checked(key) for key in ['accelerationCheck','brakingCheck','coolingCheck','downforceCheck','fuel_economyCheck','handlingCheck','reliabilityCheck','tyre_economyCheck']]
+        
+        return {'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':research_power,'check':checked_design}
+
 
     def save_setup_field(self,pyqt_elements):
         self.setups = pyqt_elements
@@ -56,6 +82,7 @@ class iGP_account:
          soup_parts = BeautifulSoup(json_data['c1Condition'], 'html.parser')
          soup_total_engine = BeautifulSoup(json_data['totalEngines'], 'html.parser')
          soup_total_parts = BeautifulSoup(json_data['totalParts'], 'html.parser')
+         
          car_list.append ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
                       'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
                       'fuel_economy':json_data['fuel_economyBar'],
@@ -142,12 +169,10 @@ class iGP_account:
             return False
         self.has_league = True
         saved_strat_data = BeautifulSoup(json_data['d1FuelOrLaps'], 'html.parser')
-        ## [stint] ->[tyre,laps,fuel]
-        saved_strat = [[json_data['d1s1Tyre'],saved_strat_data.find('input',{'name':'laps1'})['value'],saved_strat_data.find('input',{'name':'fuel1'})['value']],
-                       [json_data['d1s2Tyre'],saved_strat_data.find('input',{'name':'laps2'})['value'],saved_strat_data.find('input',{'name':'fuel2'})['value']],
-                       [json_data['d1s3Tyre'],saved_strat_data.find('input',{'name':'laps3'})['value'],saved_strat_data.find('input',{'name':'fuel3'})['value']],
-                       [json_data['d1s4Tyre'],saved_strat_data.find('input',{'name':'laps4'})['value'],saved_strat_data.find('input',{'name':'fuel4'})['value']],
-                       [json_data['d1s5Tyre'],saved_strat_data.find('input',{'name':'laps5'})['value'],saved_strat_data.find('input',{'name':'fuel5'})['value']]]
+        
+        ##       stint              stint
+        ## [[tyre,laps,fuel]],[[tyre,laps,fuel]]
+        saved_strat = [[json_data[f'd1s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
 
         strategy.append({'rules':json.loads(json_data['rulesJson']),
                          'raceLaps':json_data['raceLaps'],
@@ -167,11 +192,7 @@ class iGP_account:
         # check if 2 cars
         if json_data['d2Pits'] != 0:
             saved_strat_data = BeautifulSoup(json_data['d2FuelOrLaps'], 'html.parser')
-            saved_strat = [[json_data['d1s1Tyre'],saved_strat_data.find('input',{'name':'laps1'})['value'],saved_strat_data.find('input',{'name':'fuel1'})['value']],
-                       [json_data['d2s2Tyre'],saved_strat_data.find('input',{'name':'laps2'})['value'],saved_strat_data.find('input',{'name':'fuel2'})['value']],
-                       [json_data['d2s3Tyre'],saved_strat_data.find('input',{'name':'laps3'})['value'],saved_strat_data.find('input',{'name':'fuel3'})['value']],
-                       [json_data['d2s4Tyre'],saved_strat_data.find('input',{'name':'laps4'})['value'],saved_strat_data.find('input',{'name':'fuel4'})['value']],
-                       [json_data['d2s5Tyre'],saved_strat_data.find('input',{'name':'laps5'})['value'],saved_strat_data.find('input',{'name':'fuel5'})['value']]]
+            saved_strat = [[json_data[f'd2s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
             strategy.append({'rules':json.loads(json_data['rulesJson']),
                          'suspension':json_data['d2Suspension'],
                          'aero':json_data['d2Aerodynamics'],
@@ -292,7 +313,6 @@ class iGP_account:
                         "d2strategyAdvanced":d2strategyAdvanced
                     }  
         good_format =  str(strat_data).replace("'", "\"")
-        print(good_format)
         response =  self.session.post(url, data=good_format)
         print(f"saved strategy for: ",self.username)
 
