@@ -1,3 +1,4 @@
+import json
 from tool_api import iGP_account
 from PyQt5.QtWidgets import QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt5.QtGui import QPixmap, QIcon
@@ -60,6 +61,7 @@ class iGPWindow(QWidget):
         inner_layout.addWidget(QLabel('Race'), 0, 0,)
         button = QPushButton('Suggested', self)
         button_save = QPushButton('Save setup/strategy', self)
+        
         #button.setFixedWidth(60)
         inner_layout.addWidget(QLabel(''), 0, 1,)
         inner_layout.addWidget(button, 0, 2)
@@ -94,12 +96,17 @@ class iGPWindow(QWidget):
         self.main_grid.addLayout(self.init_race_tab()  , 0, 4,alignment=Qt.AlignLeft)
 
 class PopupWindow(QDialog):
-    def __init__(self, parent=None, index= None, config=None):
+    def __init__(self, parent=None, index= None, config=None, optional=None):
         super().__init__(parent)
-        self.number = config['number']
-        self.type = config['type']
-        self.account = config['account']
-        self.index = index
+        
+        if index is None and config is None and optional is not None:
+            self.data = optional
+            self.type = 'load'
+        else:
+            self.number = config['number']
+            self.type = config['type']
+            self.account = config['account']
+            self.index = index 
         init_functions ={
                          'parts': self.init_parts_popup,
                          'engine': self.init_engine_repair_popup,
@@ -107,12 +114,45 @@ class PopupWindow(QDialog):
                          'contract': self.init_contract_popup,
                          'driver': self.init_driver_popup,
                          'research': self.init_research_popup,
-                         'sponsor': self.init_sponsor_popup
+                         'sponsor': self.init_sponsor_popup,
+                         'load': self.init_load_popup
                         }
         if self.type in init_functions:
             init_functions[self.type]()      
+    def on_load_pressed(self):
+        strategy_popup = PopupWindow(self,optional=self.valid_strat_layouts)
+        strategy_popup.exec_()
 
+    def init_load_popup(self):
+        mainlayout = QGridLayout()
+        for row,strat in enumerate(self.data):
+            strategy_layout = self.parent().parent().display_strat(strat)
+            load_button = QPushButton('load')
+            load_button.clicked.connect(self.load_strategy)
+            load_button.setProperty('strat',strat)
+            mainlayout.addWidget(load_button,row,0)  
+            mainlayout.addLayout(strategy_layout,row,1)    
+          
+        self.setLayout(mainlayout)
+    def load_strategy(self):
+        self.setWindowTitle('load strategy')
+        self.accept()
+        strategy_window = self.parent()
+        strategy_to_load = self.sender().property('strat')
+        print(strategy_to_load)
+        strategy_window.strategy_pits.setCurrentIndex(strategy_to_load['pits']-1)
         
+        tyre_map = {'SS':0,'S':1,'M':2,'H':3,'I':4,'W':5}
+
+
+        for i,stint in enumerate(strategy_to_load['strat']):
+            stint_fuel = int(stint[1]) * strategy_window.fuel_lap
+            print(stint_fuel)
+            strategy_window.stint_fuel[i].setValue(math.ceil(stint_fuel))
+            strategy_window.stint_tyre[i].setCurrentIndex(tyre_map[stint[0]])
+
+
+
     def init_parts_popup(self):
         self.setWindowTitle('Parts repair')
         self.setFixedSize(200, 100)
@@ -149,8 +189,7 @@ class PopupWindow(QDialog):
             combo1.addItems(combined_text)
             grid_layout.addWidget(combo1,1,0)
             combo1.setProperty('location',1)
-            comboboxes.append(combo1)
-            print('pick sponsor')      
+            comboboxes.append(combo1)   
         if self.account.sponsors['s2']['income'] != '0':
             grid_layout.addWidget(QLabel(self.account.sponsors['s2']['income']),1,1)
             grid_layout.addWidget(QLabel(self.account.sponsors['s2']['bonus']),2,1)
@@ -181,9 +220,6 @@ class PopupWindow(QDialog):
 
             confirm_button.clicked.connect(send_sponsor_contract)
             
-            
-            
-            print('send sponsor request')
 
         #button = QPushButton('repair', self)
         
@@ -275,7 +311,6 @@ class PopupWindow(QDialog):
         self.best = []
         self.gains = []
         #can't go below this
-        original_spinboxes_value = []
         self.car_total_points = 0
         for i, key in enumerate(['acceleration', 'braking', 'cooling', 'downforce', 'fuel economy', 'handling', 'reliability', 'tyre economy']):
             
@@ -465,6 +500,8 @@ class PopupWindow(QDialog):
         self.setLayout(layout) 
     
     def init_strategy_popup(self):
+        self.stint_fuel = []
+        self.stint_tyre = []
         def set_size(img_label):
             img_label.setFixedHeight(22)
             img_label.setFixedWidth(22)
@@ -530,7 +567,7 @@ class PopupWindow(QDialog):
         select_box.addItem("3 pit stops")
         select_box.addItem("4 pit stops")
         
-        
+        self.strategy_pits = select_box
         car_strategy = self.account.strategy[self.number]
         
         
@@ -540,6 +577,7 @@ class PopupWindow(QDialog):
         
         def on_pit_box_changed(index):
             car_strategy['pits'] = index+1
+            print('changed to',index+1)
             for i in range(5):
                 if index+1 < i:
                     for ele in self.elements[i]:
@@ -581,17 +619,59 @@ class PopupWindow(QDialog):
             }
         """)
         stints_grid_layout  = QGridLayout()
-        fuel_lap = int(Track.fuel_calc(self.account.car[0]['fuel_economy']) * Track().info[self.account.strategy[0]['trackCode']]['length'] *100) /100
+        self.fuel_lap = int(Track.fuel_calc(self.account.car[0]['fuel_economy']) * Track().info[self.account.strategy[0]['trackCode']]['length'] *100) /100
         layout = QVBoxLayout()
         stints_grid_layout.addWidget(select_box,0,0,1,2,Qt.AlignCenter)
-        stints_grid_layout.addWidget(QLabel(f'Fuel/lap: {fuel_lap}'),0,2,1,2,Qt.AlignLeft)
+        stints_grid_layout.addWidget(QLabel(f'Fuel/lap: {self.fuel_lap}'),0,2,1,2,Qt.AlignLeft)
+
+        
+        save_button = QPushButton('save')
+        save_button.setDisabled(True)
+        load_button = QPushButton('load')
+        save_button.setFixedWidth(40)
+        load_button.setFixedWidth(40)
+        stints_grid_layout.addWidget(save_button,1,0)
+        stints_grid_layout.addWidget(load_button,2,0)
+
+        #try to read strategies from file save.json
+        with open('save.json', 'r') as json_file:
+            save_list = json.load(json_file)['save']
+
+        # trackcode has the code
+        if trackCode in save_list:
+            total_laps = int(self.account.strategy[0]['raceLaps'])
+            valid_strat = False
+            self.valid_strat_layouts = []
+            for key, value_inner in save_list[trackCode].items():
+                #print(f"pits {len(value_inner['stints'])-1}")
+                if int(value_inner['laps']['total']) == total_laps:
+                    valid_strat = True
+                    saved_pits = len(value_inner['stints'])-1
+                    stints = []
+                    for stint_key, value in value_inner['stints'].items():
+                         tyre =  value['tyre'].split('-')[1]
+                         laps = value['laps']
+                          # [tyre,lap,fuel]
+                         stints.append([tyre,laps,0])
+                    strategy = {'strat':stints,'pits':saved_pits}
+                    self.valid_strat_layouts.append(strategy)
+            if valid_strat:
+                print('displaying')
+            else: 
+                load_button.setDisabled(True)        
+        else:
+            load_button.setDisabled(True)
+
+        load_button.clicked.connect(self.on_load_pressed)    
         stints_grid_layout.addWidget(QLabel('Fuel'),3,0)
         stints_grid_layout.addWidget(QLabel('Laps'),4,0)
+        stints_grid_layout.addWidget(QLabel('Wear'),5,0)
         tyre_map_text = {'SS':ss,'S':s,'M':m,'H':h,'I':i,'W':w}
         tyre_map = {'SS':0,'S':1,'M':2,'H':3,'I':4,'W':5}
         tyre_map_rev = {0:'SS',1:'S',2:'M',3:'H',4:'I',5:'W'}
         self.elements = []
         self.stint_laps = 0
+
         for index,value in enumerate(range(5), start=1):
           
           selected_tyre = car_strategy['strat'][index-1][0]
@@ -603,16 +683,17 @@ class PopupWindow(QDialog):
           
           
           fuel_field = QSpinBox()
+          self.stint_fuel.append(fuel_field)
           #fuel_field.setInputMask('999')
           fuel_field.setFixedWidth(50)
           fuel_field.setAlignment(Qt.AlignCenter)
           fuel_field.setValue(int(car_strategy['strat'][index-1][2]))
-          laps_label = QLabel(f"{int(int(car_strategy['strat'][index-1][2])/fuel_lap*100)/100}")
+          laps_label = QLabel(f"{int(int(car_strategy['strat'][index-1][2])/self.fuel_lap*100)/100}")
           
           wear_label = QLabel(f"{Track.stint_wear_calc(tyre_map_text[selected_tyre],car_strategy['strat'][index-1][1],self.account.strategy[0]['trackCode'])}")
           
           tyre_select_ele = tyre_select()
-         
+          self.stint_tyre.append(tyre_select_ele)
           if index < int(car_strategy['pits'])+2:
                     self.stint_laps += int(car_strategy['strat'][index-1][1])  
 
@@ -635,7 +716,7 @@ class PopupWindow(QDialog):
           
           def on_fuel_changed(fuel, column):
             if fuel != '':
-                laps = (int(int(fuel)/fuel_lap*100)/100)
+                laps = (int(int(fuel)/self.fuel_lap*100)/100)
                 self.elements[column][3].setText(str(laps))
                 #tyre wear
                 
@@ -656,6 +737,8 @@ class PopupWindow(QDialog):
           
           stints_grid_layout.addWidget(wear_label,5,index,Qt.AlignLeft)
           self.elements.append([stint_label,tyre_select_ele,fuel_field,laps_label,wear_label])
+          
+         
           if index > pits+1:
              for ele in [stint_label,tyre_select_ele,fuel_field,laps_label,wear_label]:
                  ele.hide()
