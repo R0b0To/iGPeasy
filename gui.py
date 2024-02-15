@@ -47,10 +47,11 @@ class iGPWindow(QWidget):
         inner_layout.addWidget(QLabel('Engine'),1,1)
         self.car_tab = inner_layout
         return inner_layout
-    def init_research_tab(self):
+    def init_misc_tab(self):
         inner_layout  = QGridLayout()
-        inner_layout.addWidget(QLabel('Research'), 0, 0)
-        inner_layout.addWidget(QLabel(''), 0, 1)
+        inner_layout.addWidget(QLabel('Research'), 1, 0)
+        inner_layout.addWidget(QLabel('Sponsor'), 1, 1)
+        inner_layout.addWidget(QLabel(''), 0,0)
         self.research_tab = inner_layout
         return inner_layout
 
@@ -88,7 +89,7 @@ class iGPWindow(QWidget):
         self.setWindowTitle("iGPeasy")
         self.main_grid.addLayout(self.init_accout_tab(), 0, 0,alignment=Qt.AlignTop)
         self.main_grid.addLayout(self.init_driver_tab(), 0, 1,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_research_tab(), 0, 2,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_misc_tab(), 0, 2,alignment=Qt.AlignTop)
         self.main_grid.addLayout(self.init_car_tab()   , 0, 3,alignment=Qt.AlignTop)
         self.main_grid.addLayout(self.init_race_tab()  , 0, 4,alignment=Qt.AlignLeft)
 
@@ -105,7 +106,8 @@ class PopupWindow(QDialog):
                          'strategy': self.init_strategy_popup,
                          'contract': self.init_contract_popup,
                          'driver': self.init_driver_popup,
-                         'research': self.init_research_popup
+                         'research': self.init_research_popup,
+                         'sponsor': self.init_sponsor_popup
                         }
         if self.type in init_functions:
             init_functions[self.type]()      
@@ -123,6 +125,72 @@ class PopupWindow(QDialog):
         layout.addWidget(label)
         layout.addWidget(button)
         self.setLayout(layout)
+    
+    def init_sponsor_popup(self):
+        self.setWindowTitle('sponsor')
+
+        grid_layout  = QGridLayout()
+        
+        label1 = QLabel(f"Primary Sponsor")
+        label2 = QLabel(f"Secondary Sponsor")
+        grid_layout.addWidget(label1,0,0)
+        grid_layout.addWidget(label2,0,1)
+        comboboxes = []
+        ids = []
+        if self.account.sponsors['s1']['income'] != '0':
+            grid_layout.addWidget(QLabel(self.account.sponsors['s1']['income']),1,0)
+            grid_layout.addWidget(QLabel(self.account.sponsors['s1']['bonus']),2,0)
+            grid_layout.addWidget(QLabel(self.account.sponsors['s1']['expire']),3,0)
+        else:
+            income_list, bonus_list,id_list = self.account.pick_sponsor(1)
+            combo1 = QComboBox()
+            ids.append(id_list)
+            combined_text = [f"{income_list[i]} , {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
+            combo1.addItems(combined_text)
+            grid_layout.addWidget(combo1,1,0)
+            combo1.setProperty('location',1)
+            comboboxes.append(combo1)
+            print('pick sponsor')      
+        if self.account.sponsors['s2']['income'] != '0':
+            grid_layout.addWidget(QLabel(self.account.sponsors['s2']['income']),1,1)
+            grid_layout.addWidget(QLabel(self.account.sponsors['s2']['bonus']),2,1)
+            grid_layout.addWidget(QLabel(self.account.sponsors['s2']['expire']),3,1)
+        else:
+            income_list, bonus_list, id_list = self.account.pick_sponsor(2)
+            combo2 = QComboBox()
+            ids.append(id_list)
+            combined_text = [f"{income_list[i]} , {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
+            combo2.addItems(combined_text)
+            grid_layout.addWidget(combo2,1,1)
+            combo2.setProperty('location',2)
+            comboboxes.append(combo2)
+
+
+        if len(comboboxes) > 0:
+            confirm_button = QPushButton('Confirm')
+            grid_layout.addWidget(confirm_button,4,0,1,2)
+
+            def send_sponsor_contract():
+                for i,combo in enumerate(comboboxes):
+                    id  = combo.currentIndex()
+                    self.account.save_sponsor(combo.property('location'),ids[i][id])
+                    self.parent().main_window.buttons[self.index].setText('2/2')
+                    #update the new sposnsors
+                    self.account.get_sponsors()
+                    self.accept()    
+
+            confirm_button.clicked.connect(send_sponsor_contract)
+            
+            
+            
+            print('send sponsor request')
+
+        #button = QPushButton('repair', self)
+        
+        #button.clicked.connect(self.update_main_button)
+        #layout.addWidget(label)
+        #layout.addLayp(grid_layout)
+        self.setLayout(grid_layout)
     
 
     def points_handler(self):

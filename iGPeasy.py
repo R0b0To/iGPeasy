@@ -57,7 +57,7 @@ class iGPeasyWindow(QWidget):
                 #inner_layout.addWidget(QLabel(driver['health']),row,3)# 3 is health (need to add restore with token)
                 row+=1         
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)
-    def load_research(self,account):
+    def load_misc(self,account):
         inner_layout  = QGridLayout() 
         button = QPushButton('Res', self)
         button.setFixedWidth(50)
@@ -65,9 +65,18 @@ class iGPeasyWindow(QWidget):
         self.main_window.buttons.append(button)
         button.setProperty('type','research')
         button.clicked.connect(lambda: self.on_modify_research(account))
+        
+        sponsors = account.get_sponsors()
+        button = QPushButton(sponsors, self)
+        button.setFixedWidth(50)
+        button.setProperty('type','sponsor')
+        inner_layout.addWidget(button,0,3)
+        self.main_window.buttons.append(button)
+        button.clicked.connect(lambda: self.on_sponsor_click(account))
         #self.main_window.buttons.append(button)
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
-    
+
+
     def load_car(self,account):
         inner_layout  = QGridLayout()
         row = 0
@@ -207,7 +216,7 @@ class iGPeasyWindow(QWidget):
             self.load_drivers(account)
         
             self.load_car(account)
-            self.load_research(account)
+            self.load_misc(account)
             self.load_strategy(account)
             self.account_row+=1
             
@@ -285,7 +294,14 @@ class iGPeasyWindow(QWidget):
         index = self.main_window.buttons.index(sender_button)
         type = sender_button.property('type')
         popup = PopupWindow(self,index,{'type':type,'account':account,'number':0})
-        popup.exec_()          
+        popup.exec_()
+    
+    def on_sponsor_click(self,account):        
+        sender_button = self.sender()  # Get the button that was clicked
+        index = self.main_window.buttons.index(sender_button)
+        type = sender_button.property('type')
+        popup = PopupWindow(self,index,{'type':type,'account':account,'number':0})
+        popup.exec_()                
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

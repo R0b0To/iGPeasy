@@ -123,7 +123,51 @@ class iGP_account:
        current_timestamp = time.time()
        difference_seconds = self.next_race - current_timestamp
        return str(round(difference_seconds / 3600,1))
-     
+    def pick_sponsor(self,number):
+        json_data =  self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=sponsor&location={number}&csrfName=&csrfToken=")
+        parser = {1:'span',2:'td'}
+        income_soup =  BeautifulSoup(json_data['row2'],'html.parser').find_all(parser[number])
+        bonus_soup = BeautifulSoup(json_data['row3'],'html.parser').find_all('td')
+        id_soup = BeautifulSoup(json_data['row1'],'html.parser').find_all('i')
+        income_list = [income.text for income in income_soup]
+        bonus_list = [bonus.text for bonus in bonus_soup]
+        id_list = [id.text.split('/')[-1].split('.gif')[0] for id in id_soup]
+
+        return income_list,bonus_list,id_list
+
+    def get_sponsors(self):
+        json_data = self.fetch_url("https://igpmanager.com/index.php?action=fetch&p=finances&csrfName=&csrfToken=")
+        contract = 0
+        empty_sponsor = {'income':'0','bonus':'0','expire':'0'}
+        sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
+        #primary
+        if json_data['s1Name'] == '':
+            print('whitout sponsor')
+        else:
+            contract_soup = BeautifulSoup(json_data['s1Info'],'html.parser').find_all('td')
+            sponsors['s1']['income'] = contract_soup[1].contents[2].text
+            sponsors['s1']['bonus'] = contract_soup[3].text
+            sponsors['s1']['expire'] = contract_soup[5].text
+            contract+=1
+        #secondary
+        if json_data['s2Name'] == '':
+            print('whitout sponsor')
+        else:
+            contract_soup = BeautifulSoup(json_data['s2Info'],'html.parser').find_all('td')
+            sponsors['s2']['income'] = contract_soup[1].text
+            sponsors['s2']['bonus'] = contract_soup[3].text
+            sponsors['s2']['expire'] = contract_soup[5].text
+            contract+=1 
+        
+        self.sponsors = sponsors        
+        
+                       
+        return f"{contract}/2"
+    def save_sponsor(self,number,id):
+        print(f'saving sponsor {number}, {id}')
+        sign_sponsor = f"https://igpmanager.com/index.php?action=send&type=contract&enact=sign&eType=5&eId={id}&location={number}&jsReply=contract&csrfName=&csrfToken="
+        json_data = self.fetch_url(sign_sponsor)
+
 
     def staff_info(self): 
          response = self.session.get(f"https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken=")
