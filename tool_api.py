@@ -142,7 +142,7 @@ class iGP_account:
         sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
         #primary
         if json_data['s1Name'] == '':
-            print('whitout sponsor')
+            print('whitout primary sponsor')
         else:
             contract_soup = BeautifulSoup(json_data['s1Info'],'html.parser').find_all('td')
             sponsors['s1']['income'] = contract_soup[1].contents[2].text
@@ -151,7 +151,7 @@ class iGP_account:
             contract+=1
         #secondary
         if json_data['s2Name'] == '':
-            print('whitout sponsor')
+            print('whitout secondary sponsor')
         else:
             contract_soup = BeautifulSoup(json_data['s2Info'],'html.parser').find_all('td')
             sponsors['s2']['income'] = contract_soup[1].text
@@ -164,7 +164,6 @@ class iGP_account:
                        
         return f"{contract}/2"
     def save_sponsor(self,number,id):
-        print(f'saving sponsor {number}, {id}')
         sign_sponsor = f"https://igpmanager.com/index.php?action=send&type=contract&enact=sign&eType=5&eId={id}&location={number}&jsReply=contract&csrfName=&csrfToken="
         json_data = self.fetch_url(sign_sponsor)
 

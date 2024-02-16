@@ -31,8 +31,7 @@ class iGPeasyWindow(QWidget):
     def load_drivers(self,account):
         inner_layout  = QGridLayout()
         row = 0
-        print(len(account.staff['drivers']))
-        
+ 
         for driver in account.staff['drivers']:
                 name_text = QPushButton(driver['name'],self)
                 name_text.setFixedWidth(90)
@@ -237,8 +236,6 @@ class iGPeasyWindow(QWidget):
                 ride = str(suggested_setup.ride)
                 aero = str(suggested_setup.wing)
                 suspension = suggested_setup.suspension
-                
-                print(suggested_setup.suspension)
 
                 account.setups[0][0].setCurrentIndex(suspension)
                 account.setups[0][1].setText(ride)
@@ -285,7 +282,7 @@ class iGPeasyWindow(QWidget):
 
         number = sender_button.property('driver_index')
         type = sender_button.property('type')
-        print(id, type)
+
         
         popup = PopupWindow(self,index,{'type':type,'account':account,'number':number})
         popup.exec_()
