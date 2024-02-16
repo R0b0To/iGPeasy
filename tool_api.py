@@ -217,7 +217,12 @@ class iGP_account:
         ## [[tyre,laps,fuel]],[[tyre,laps,fuel]]
         saved_strat = [[json_data[f'd1s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
 
+        
+
         strategy.append({'rules':json.loads(json_data['rulesJson']),
+                         'advanced':json_data['d1IgnoreAdvanced'],
+                         'advancedFuel':BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input.get('value') if BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input else '0',
+                         'push':json_data['d1PushLevel'],
                          'raceLaps':json_data['raceLaps'],
                          'raceName':BeautifulSoup(json_data['raceName'], 'html.parser').text.strip(),
                          'raceTime':json_data['raceTime'],
@@ -238,6 +243,9 @@ class iGP_account:
             saved_strat = [[json_data[f'd2s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
             strategy.append({'rules':json.loads(json_data['rulesJson']),
                          'suspension':json_data['d2Suspension'],
+                         'advancedFuel':BeautifulSoup(json_data['d2AdvancedFuel'], 'html.parser').input.get('value') if BeautifulSoup(json_data['d2AdvancedFuel'], 'html.parser').input else '0',
+                         'advanced':json_data['d2IgnoreAdvanced'],
+                         'push':json_data['d2PushLevel'],
                          'aero':json_data['d2Aerodynamics'],
                          'ride':json_data['d2Ride'],
                          'pits':json_data['d2Pits'],

@@ -713,7 +713,20 @@ class PopupWindow(QDialog):
         tyre_map_rev = {0:'SS',1:'S',2:'M',3:'H',4:'I',5:'W'}
         self.elements = []
         self.stint_laps = 0
-
+        self.total_laps_value = 1
+        self.total_fuel = 0
+        self.total_laps = QLabel(f"{self.stint_laps}/{self.account.strategy[0]['raceLaps']}")
+        def update_total_laps():
+            pit = int(car_strategy['pits'])
+            self.total_laps_value = 0 
+            self.total_fuel = 0  
+            for index, stint in enumerate (car_strategy['strat'],start=0):
+                if index < pit+1:
+                    self.total_laps_value += int(stint[1])
+                    self.total_fuel += int(stint[2]) 
+            if self.fuel_rules == '0':
+                self.suggested_fuel.setText(f"{self.total_laps_value*self.fuel_lap} L")                
+            self.total_laps.setText(f"{self.total_laps_value}/{self.account.strategy[0]['raceLaps']}") 
         
         def on_laps_changed(laps, stint):
                 
@@ -732,7 +745,33 @@ class PopupWindow(QDialog):
                     self.elements[stint][4].setText(Track.stint_wear_calc(tyre_wear,laps,self.trackCode))
 
                     update_total_laps() 
+        advanced_grid = QGridLayout()
+        
+        adv_checkbox = QCheckBox('Enable advanced')
+        if car_strategy['advanced'] == '0':
+            adv_checkbox.setChecked(True)
+        push_combobox = QComboBox()
+        push_combobox.addItems(["very high","high","neutral","low","very low" ])
+        push_map = {'100':0,'80':1,'60':2,'40':3,'20':4}
+        push_combobox.setCurrentIndex(push_map[car_strategy['pushLevel']])
+        advanced_grid.addWidget(adv_checkbox,0,0)
+        advanced_grid.addWidget(QLabel('Push'),1,0)
+        advanced_grid.addWidget(push_combobox,1,1)
+        if self.fuel_rules == '0':
+            print('test',car_strategy['advancedFuel'])
+            fuel_load = QSpinBox()
+            fuel_load.setMaximum(200)
+            fuel_load.setFixedWidth(100)
+            fuel_load.setAlignment(Qt.AlignCenter)
+            fuel_load.setValue(int(car_strategy['advancedFuel']))
+            
+            self.suggested_fuel = QLabel(f"{self.total_laps_value * self.fuel_lap} L")
+            update_total_laps()
+            
 
+            advanced_grid.addWidget(self.suggested_fuel,2,0)
+            advanced_grid.addWidget(fuel_load,2,1)
+            print(self.total_fuel) 
 
         for index,value in enumerate(range(5), start=1):
           
@@ -749,11 +788,15 @@ class PopupWindow(QDialog):
           #fuel_field.setInputMask('999')
           fuel_field.setFixedWidth(50)
           fuel_field.setAlignment(Qt.AlignCenter)
-          fuel_field.setValue(int(car_strategy['strat'][index-1][2]))
+          
+          
+          
           
           if self.fuel_rules != '0' :
             laps_label = QLabel(f"{int(int(car_strategy['strat'][index-1][2])/self.fuel_lap*100)/100}")
           else:
+            ## calculate the fuel based on the laps if norefuel
+            car_strategy['strat'][index-1][2] = (int(car_strategy['strat'][index-1][1]) * self.fuel_lap)
             fuel_field.setProperty('refuel',False)
             laps_label = QSpinBox()
             laps_label.setFixedWidth(50)
@@ -761,7 +804,8 @@ class PopupWindow(QDialog):
             laps_label.setValue(int(car_strategy['strat'][index-1][1]))
             laps_label.textChanged.connect(lambda index, column=index-1: on_laps_changed(index,column))  
             
-
+          
+          fuel_field.setValue(int(car_strategy['strat'][index-1][2]))
           wear_label = QLabel(f"{Track.stint_wear_calc(tyre_map_text[selected_tyre],car_strategy['strat'][index-1][1],self.account.strategy[0]['trackCode'])}")
           
           tyre_select_ele = tyre_select()
@@ -769,7 +813,6 @@ class PopupWindow(QDialog):
           self.stint_tyre.append(tyre_select_ele)
           if index < int(car_strategy['pits'])+2:
                     self.stint_laps += int(car_strategy['strat'][index-1][1])  
-
           
           def on_tyre_changed(index, column):
             car_strategy['strat'][column][0] = tyre_map_rev[index]
@@ -778,15 +821,8 @@ class PopupWindow(QDialog):
             track = self.account.strategy[0]['trackCode']
             self.elements[column][4].setText(Track.stint_wear_calc(tyre_wear,laps,track))
           
-          def update_total_laps():
-            pit = int(car_strategy['pits'])
-            total_laps = 0     
-            for index, stint in enumerate (car_strategy['strat'],start=0):
-                if index < pit+1:
-                    total_laps += int(stint[1])       
-
-            self.total_laps.setText(f"{total_laps}/{self.account.strategy[0]['raceLaps']}") 
           
+
           def on_fuel_changed(fuel, column):
             
             if self.fuel_rules != '0':
@@ -834,11 +870,17 @@ class PopupWindow(QDialog):
         ## add here total laps of the strategy compared to the race
         confirm_button = QPushButton('Confirm', self)
         confirm_button.clicked.connect(self.update_main_strategy)
-        self.total_laps = QLabel(f"{self.stint_laps}/{self.account.strategy[0]['raceLaps']}")
+        
         self.total_laps.setAlignment(Qt.AlignCenter)
         
         
         layout.addWidget(self.total_laps)
+        
+
+         
+
+        layout.addLayout(advanced_grid)
+        
         layout.addWidget(confirm_button)
         self.setLayout(layout) 
     
