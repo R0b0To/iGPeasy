@@ -15,7 +15,15 @@ class iGP_account:
         json_data = response.json()['vars']
         return json_data
 
+    def get_general_info(self):
+        url = 'https://igpmanager.com/index.php?action=fireUp&addon=igp&ajax=1&jsReply=fireUp&uwv=false&csrfName=&csrfToken='
+        response =  self.session.post(url)
+        json_data = response.json()
+        self.manager = json_data['manager']
+        self.team = json_data['team']
+        self.notify = json_data['notify']
     def init_account(self):
+        self.get_general_info()
         self.car = self.car_info()
         self.staff = self.staff_info()
         self.strategy = self.next_race_info()
@@ -45,7 +53,10 @@ class iGP_account:
         
         return {'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':self.research_power,'check':checked_design}
 
-
+    def get_daily(self):
+        url = 'https://igpmanager.com/content/misc/igp/ajax/dailyReward.php'
+        response = self.session.post(url)
+        return response.json()
     def save_setup_field(self,pyqt_elements):
         self.setups = pyqt_elements
     def login(self):

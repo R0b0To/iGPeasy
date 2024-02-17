@@ -55,7 +55,7 @@ class iGPeasyWindow(QWidget):
                 #inner_layout.addWidget(QLabel('train'),row,3)# 3 is train this will be a button, open window with the options
                 #inner_layout.addWidget(QLabel(driver['health']),row,3)# 3 is health (need to add restore with token)
                 row+=1         
-        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)
+        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
     def load_misc(self,account):
         inner_layout  = QGridLayout() 
         button = QPushButton( self)
@@ -74,9 +74,25 @@ class iGPeasyWindow(QWidget):
         self.main_window.buttons.append(button)
         button.clicked.connect(lambda: self.on_sponsor_click(account))
         #self.main_window.buttons.append(button)
-        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
+        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 3,alignment=Qt.AlignTop)
+    def load_daily(self,account):
+        inner_layout  = QGridLayout()
 
+        if 'page'in account.notify and'nDailyReward' in account.notify['page']:
+              reward_status = False
+        else:
+              reward_status = True
 
+        reward_button = QPushButton('Daily')
+        reward_button.setFixedWidth(50)
+        self.daily = reward_button
+        reward_button.setDisabled(reward_status) 
+        reward_button.clicked.connect(lambda: self.on_daily_pressed(account))
+        inner_layout.addWidget(reward_button,0,0)
+        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)     
+    def on_daily_pressed(self,account):
+         account.get_daily()
+         self.sender().setDisabled(True)
     def load_car(self,account):
         inner_layout  = QGridLayout()
         row = 0
@@ -108,7 +124,7 @@ class iGPeasyWindow(QWidget):
                     button.setEnabled(False)              
 
                 row+=1         
-        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 3,alignment=Qt.AlignTop)
+        self.main_window.main_grid.addLayout(inner_layout, self.account_row, 4,alignment=Qt.AlignTop)
     def display_strat(self,full_strategy):
             strategy = full_strategy['strat']
             pits = int(full_strategy['pits'])
@@ -189,7 +205,7 @@ class iGPeasyWindow(QWidget):
                     #inner_layout.addWidget(QLabel(display_strat(driver)),row,2)# 1 is engine
                     row+=1
                     setups_elements.append([select_box,ride_field,aero_field])         
-            self.main_window.main_grid.addLayout(inner_layout, self.account_row, 4,Qt.AlignLeft)
+            self.main_window.main_grid.addLayout(inner_layout, self.account_row, 5,Qt.AlignLeft)
             account.save_setup_field(setups_elements)    
 
     def initUI(self):
@@ -214,7 +230,7 @@ class iGPeasyWindow(QWidget):
             
 
             self.load_drivers(account)
-        
+            self.load_daily(account)
             self.load_car(account)
             self.load_misc(account)
             self.load_strategy(account)
@@ -228,7 +244,14 @@ class iGPeasyWindow(QWidget):
 
         
         self.show()
-    
+    def get_daily_from_all(self):
+        for account in self.valid_accounts:
+            if 'page'in account.notify and'nDailyReward' in account.notify['page']:
+              print(account.get_daily())
+              self.daily.setDisabled(True)
+            else:
+              reward_status = True
+             
     def on_setup_clicked(self):  
         for account in self.valid_accounts:
             if account.has_league:

@@ -18,7 +18,15 @@ class iGPWindow(QWidget):
 
     #def set_setup_function():
 
-
+    def init_daily_tab(self):
+        inner_layout  = QGridLayout()
+        daily_button = QPushButton('Daily')
+        daily_button.setFixedWidth(50)
+        inner_layout.addWidget(QLabel(''), 0,0)
+        inner_layout.addWidget(daily_button, 1, 0)
+        daily_button.clicked.connect(lambda: self.parent.get_daily_from_all())
+        self.daily_tab = inner_layout
+        return inner_layout
     def init_accout_tab(self):
         inner_layout  = QGridLayout()
         inner_layout.addWidget(QLabel(''), 0, 0,)
@@ -90,10 +98,11 @@ class iGPWindow(QWidget):
         
         self.setWindowTitle("iGPeasy")
         self.main_grid.addLayout(self.init_accout_tab(), 0, 0,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_driver_tab(), 0, 1,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_misc_tab(), 0, 2,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_car_tab()   , 0, 3,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_race_tab()  , 0, 4,alignment=Qt.AlignLeft)
+        self.main_grid.addLayout(self.init_daily_tab(), 0, 1,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_driver_tab(), 0, 2,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_misc_tab(), 0, 3,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_car_tab()   , 0, 4,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_race_tab()  , 0, 5,alignment=Qt.AlignLeft)
 
 class PopupWindow(QDialog):
     def __init__(self, parent=None, index= None, config=None, optional=None):
