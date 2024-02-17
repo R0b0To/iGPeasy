@@ -58,7 +58,8 @@ class iGPeasyWindow(QWidget):
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)
     def load_misc(self,account):
         inner_layout  = QGridLayout() 
-        button = QPushButton('Res', self)
+        button = QPushButton( self)
+        button.setIcon(QIcon('car_icon.png'))
         button.setFixedWidth(50)
         inner_layout.addWidget(button,0,2)
         self.main_window.buttons.append(button)

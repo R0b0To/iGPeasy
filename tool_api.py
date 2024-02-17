@@ -29,7 +29,7 @@ class iGP_account:
 
         tier_factor = 2 if max_design == 200 else 1
 
-        research_power = research_display['researchMaxEffect']
+        self.research_power = research_display['researchMaxEffect']
         # remember tier have different max 
 
         def parse_best(attribute):
@@ -43,7 +43,7 @@ class iGP_account:
         teams_design = [parse_best(key) for key in ['accelerationRating','brakingRating','coolingRating','downforceRating','fuel_economyRating','handlingRating','reliabilityRating','tyre_economyRating']]
         checked_design = [is_checked(key) for key in ['accelerationCheck','brakingCheck','coolingCheck','downforceCheck','fuel_economyCheck','handlingCheck','reliabilityCheck','tyre_economyCheck']]
         
-        return {'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':research_power,'check':checked_design}
+        return {'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':self.research_power,'check':checked_design}
 
 
     def save_setup_field(self,pyqt_elements):
@@ -60,7 +60,7 @@ class iGP_account:
             response =  self.session.post(login_url, data=login_data)
             # Check if the login was successful
             if response.ok:
-                print(f"Loading {self.username}")
+                print(f"Trying to login with {self.username}")
                 if response.json()['status']!= 1:
                     return False
                 self.init_account()
@@ -142,7 +142,7 @@ class iGP_account:
         sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
         #primary
         if json_data['s1Name'] == '':
-            print('whitout primary sponsor')
+            print('primary sponsor expired')
         else:
             contract_soup = BeautifulSoup(json_data['s1Info'],'html.parser').find_all('td')
             sponsors['s1']['income'] = contract_soup[1].contents[2].text
@@ -151,7 +151,7 @@ class iGP_account:
             contract+=1
         #secondary
         if json_data['s2Name'] == '':
-            print('whitout secondary sponsor')
+            print('secondary sponsor expired')
         else:
             contract_soup = BeautifulSoup(json_data['s2Info'],'html.parser').find_all('td')
             sponsors['s2']['income'] = contract_soup[1].text
@@ -220,6 +220,7 @@ class iGP_account:
         
 
         strategy.append({'rules':json.loads(json_data['rulesJson']),
+                         'rulesJson':json_data['rulesJson'],
                          'advanced':json_data['d1IgnoreAdvanced'],
                          'advancedFuel':BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input.get('value') if BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input else '0',
                          'push':json_data['d1PushLevel'],
@@ -253,6 +254,9 @@ class iGP_account:
                          'strat':saved_strat})
 
         return strategy
+    def save_research(self,attributes,points):
+        self.fetch_url(f'https://igpmanager.com/index.php?action=send&addon=igp&type=research&jsReply=research&ajax=1&researchMaxEffect={self.research_power}{attributes}&csrfName=&csrfToken=')
+        self.fetch_url(f'https://igpmanager.com/index.php?action=send&addon=igp&type=design&jsReply=design&ajax=1{points}&csrfName=&csrfToken=')
     def save_strategy(self):
         #to do
         #send form data with saved strategy
@@ -284,10 +288,9 @@ class iGP_account:
                            "laps5":d2strategy[4][1]
                         }
             d2strategyAdvanced = {
-                           "pushLevel":"60",
-                           "d1SavedStrategy":"0",
-                           "ignoreAdvancedStrategy":"1",
-                           "advancedFuel":"148",
+                           "pushLevel":self.strategy[1]['pushLevel'],
+                           "d1SavedStrategy":"1",
+                           "ignoreAdvancedStrategy":self.strategy[1]['advanced'],
                            "rainStartTyre":"I",
                            "rainStartDepth":"0",
                            "rainStopTyre":"M",
@@ -318,7 +321,7 @@ class iGP_account:
         strat_data =  {"d1setup":
                        {
                            "race":d1setup['raceId'],
-                           "rules":"default",
+                           "rules":'default',
                            "suspension":str(d1setup['suspension']),
                            "ride":str(d1setup['ride']),
                            "aerodynamics":str(d1setup['aero']),
@@ -353,9 +356,9 @@ class iGP_account:
                         },
                         "d2strategy":d2strategy_c,
                         "d1strategyAdvanced":{
-                           "pushLevel":"60",
+                           "pushLevel":self.strategy[0]['pushLevel'],
                            "d1SavedStrategy":"1",
-                           "ignoreAdvancedStrategy":"1",
+                           "ignoreAdvancedStrategy":self.strategy[0]['advanced'],
                            "rainStartTyre":"I",
                            "rainStartDepth":"0",
                            "rainStopTyre":"M",
@@ -363,9 +366,15 @@ class iGP_account:
                         },
                         "d2strategyAdvanced":d2strategyAdvanced
                     }  
+        for i,strat in enumerate(self.strategy):
+            if strat['rules']['refuelling'] == '0':
+                strat_data[f'd{i+1}strategyAdvanced']['advancedFuel'] = strat['advancedFuel']
+
+
         good_format =  str(strat_data).replace("'", "\"")
         response =  self.session.post(url, data=good_format)
         print(f"saved strategy for: ",self.username)
+        
 
         
     def request_parts_repair(self,car):

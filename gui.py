@@ -27,9 +27,9 @@ class iGPWindow(QWidget):
         return inner_layout
     def init_driver_tab(self):
         inner_layout  = QGridLayout()
-        self.panel = QWidget()
-        inner_layout.addWidget(self.panel , 0, 0,2,5)
-        self.panel.setStyleSheet("background-color: grey;")
+        #self.panel = QWidget()
+        #inner_layout.addWidget(self.panel , 0, 0,2,5)
+        #self.panel.setStyleSheet("background-color: grey;")
         #inner_layout.setColumnStretch(3, 1)
         driver_header = QLabel('Drivers')
         driver_header.setFixedWidth(90)
@@ -318,14 +318,13 @@ class PopupWindow(QDialog):
         else:
             self.is_checked[checkbox_index] = False
         check_count   = max(1,self.is_checked.count(True)) 
-        self.power = self.max_power/check_count   
+        self.power = round(self.max_power/check_count,2)   
         self.calculate_points_gain()
     def init_research_popup(self):
         
         self.setWindowTitle('research')
         inner_layout  = QGridLayout()
-        layout = QVBoxLayout()
-        
+
         #{'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':research_power}
         research_data = self.account.research_info()
         self.options = []
@@ -424,6 +423,21 @@ class PopupWindow(QDialog):
 
             }
         """)
+        
+        self.setFixedSize(420, 280)
+        save_research = QPushButton('Save')
+        def on_save_research():
+            attribute_keys = ['acceleration', 'braking', 'cooling', 'downforce', 'fuel_economy', 'handling', 'reliability', 'tyre_economy']
+            attributes_to_save = ['&c%5B%5D=' + value for value, flag in zip(attribute_keys, self.is_checked) if flag]
+            spinbox_values = [spinbox.value() for spinbox in self.options]
+            points_spent = ['&{}={}'.format(key, value) for key, value in zip(attribute_keys, spinbox_values)]
+            attributes_to_save_string = ''.join(attributes_to_save)
+            points_spent_to_save_string = ''.join(points_spent)
+            self.account.save_research(attributes_to_save_string,points_spent_to_save_string)
+            self.accept()
+        save_research.clicked.connect(on_save_research)
+
+        inner_layout.addWidget(save_research,9,0,1,7)
         self.setLayout(inner_layout)
 
     def init_driver_popup(self):
@@ -538,9 +552,24 @@ class PopupWindow(QDialog):
         layout.addWidget(button)
         self.setLayout(layout) 
     
+    def fuel_load_changed(self,value):
+        self.account.strategy[self.number]['advancedFuel'] = str(value)
+        
     def init_strategy_popup(self):
+        
+        ## init strategy parameters
         self.stint_fuel = []
         self.stint_tyre = []
+        tyreWearFactors = {'SS': 2.14,'S': 1.4,'M': 1,'H': 0.78}
+        reversed_push_map = {0:'100',1:'80',2:'60',3:'40',4:'20'}
+        added_push = {0:0.02,1:0.0081,2:0,3:-0.004,4:-0.007}
+        car_strategy = self.account.strategy[self.number]
+        self.trackCode = self.account.strategy[0]['trackCode']
+        self.tier = Track().info[self.trackCode][self.account.strategy[0]['raceLaps']]
+        self.fuel_km = Track.fuel_calc(self.account.car[0]['fuel_economy'])
+        self.track_length = Track().info[self.trackCode]['length']
+        self.fuel_lap = int(self.fuel_km  * self.track_length  *100) /100
+        
         def set_size(img_label):
             img_label.setFixedHeight(22)
             img_label.setFixedWidth(22)
@@ -559,12 +588,10 @@ class PopupWindow(QDialog):
         for img in [tyre_SS_img,tyre_S_img,tyre_M_img,tyre_H_img,tyre_I_img,tyre_W_img]:
             set_size(img)
         
-        tyreWearFactors = {'SS': 2.14,'S': 1.4,'M': 1,'H': 0.78}
-        trackCode = self.account.strategy[0]['trackCode']
-        self.trackCode = trackCode
+        
         #find tier by total laps
-        self.tier = Track().info[trackCode][self.account.strategy[0]['raceLaps']]
-        calculation = (1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[trackCode]['wear'] + 0.354) * Track().info[trackCode]['length'] * 1.384612 * Track().multipliers[self.tier ]
+       
+        calculation = (1.43 * self.account.car[0]['tyre_economy'] ** -0.0778) * (0.00364 * Track().info[ self.trackCode]['wear'] + 0.354) * self.track_length * 1.384612 * Track().multipliers[self.tier ]
         ss = "{:.1f}".format(calculation * tyreWearFactors['SS'])
         s = "{:.1f}".format(calculation * tyreWearFactors['S'])
         m = "{:.1f}".format(calculation * tyreWearFactors['M'])
@@ -607,7 +634,7 @@ class PopupWindow(QDialog):
         select_box.addItem("4 pit stops")
         
         self.strategy_pits = select_box
-        car_strategy = self.account.strategy[self.number]
+        
         
         
         pits = int(car_strategy['pits'])
@@ -627,7 +654,10 @@ class PopupWindow(QDialog):
            
             update_total_laps()
         select_box.currentIndexChanged.connect(on_pit_box_changed)
-        
+        def on_push_box_changed(index):
+            self.fuel_lap = (self.fuel_km + added_push[index]) * self.track_length
+            car_strategy['pushLevel'] = reversed_push_map[index]
+            update_total_laps()
 
         def tyre_select():
             tyre_select_box = QComboBox()
@@ -659,7 +689,10 @@ class PopupWindow(QDialog):
             }
         """)
         stints_grid_layout  = QGridLayout()
-        self.fuel_lap = int(Track.fuel_calc(self.account.car[0]['fuel_economy']) * Track().info[self.account.strategy[0]['trackCode']]['length'] *100) /100
+        
+        
+        
+        
         layout = QVBoxLayout()
         stints_grid_layout.addWidget(select_box,0,0,1,2,Qt.AlignCenter)
         stints_grid_layout.addWidget(QLabel(f'Fuel/lap: {self.fuel_lap}'),0,2,1,2,Qt.AlignLeft)
@@ -679,11 +712,11 @@ class PopupWindow(QDialog):
             save_list = json.load(json_file)['save']
 
         # trackcode has the code
-        if trackCode in save_list:
+        if self.trackCode in save_list:
             total_laps = int(self.account.strategy[0]['raceLaps'])
             valid_strat = False
             self.valid_strat_layouts = []
-            for key, value_inner in save_list[trackCode].items():
+            for key, value_inner in save_list[self.trackCode].items():
                 #print(f"pits {len(value_inner['stints'])-1}")
                 if int(value_inner['laps']['total']) == total_laps:
                     valid_strat = True
@@ -725,7 +758,7 @@ class PopupWindow(QDialog):
                     self.total_laps_value += int(stint[1])
                     self.total_fuel += int(stint[2]) 
             if self.fuel_rules == '0':
-                self.suggested_fuel.setText(f"{self.total_laps_value*self.fuel_lap} L")                
+                self.suggested_fuel.setText(f"{round(self.total_laps_value* self.fuel_lap,2) } L")                
             self.total_laps.setText(f"{self.total_laps_value}/{self.account.strategy[0]['raceLaps']}") 
         
         def on_laps_changed(laps, stint):
@@ -745,6 +778,12 @@ class PopupWindow(QDialog):
                     self.elements[stint][4].setText(Track.stint_wear_calc(tyre_wear,laps,self.trackCode))
 
                     update_total_laps() 
+       
+        def advanced_status_changed(state):
+            if Qt.Checked == state:
+                car_strategy['advanced'] = '0'
+            else:
+                car_strategy['advanced'] = '1'
         advanced_grid = QGridLayout()
         
         adv_checkbox = QCheckBox('Enable advanced')
@@ -753,26 +792,30 @@ class PopupWindow(QDialog):
         push_combobox = QComboBox()
         push_combobox.addItems(["very high","high","neutral","low","very low" ])
         push_map = {'100':0,'80':1,'60':2,'40':3,'20':4}
-        push_combobox.setCurrentIndex(push_map[car_strategy['pushLevel']])
+        push_combobox.currentIndexChanged.connect(on_push_box_changed)
+        adv_checkbox.stateChanged.connect(advanced_status_changed)
+        
         advanced_grid.addWidget(adv_checkbox,0,0)
         advanced_grid.addWidget(QLabel('Push'),1,0)
         advanced_grid.addWidget(push_combobox,1,1)
+        
         if self.fuel_rules == '0':
-            print('test',car_strategy['advancedFuel'])
             fuel_load = QSpinBox()
             fuel_load.setMaximum(200)
             fuel_load.setFixedWidth(100)
             fuel_load.setAlignment(Qt.AlignCenter)
             fuel_load.setValue(int(car_strategy['advancedFuel']))
-            
+            self.account.strategy[self.number]['fuel_load'] = car_strategy['advancedFuel']
+            fuel_load.textChanged.connect(self.fuel_load_changed)  
+            self.fuel_lap = round((self.fuel_km + added_push[push_combobox.currentIndex()]) * self.track_length,2)
             self.suggested_fuel = QLabel(f"{self.total_laps_value * self.fuel_lap} L")
             update_total_laps()
             
 
             advanced_grid.addWidget(self.suggested_fuel,2,0)
             advanced_grid.addWidget(fuel_load,2,1)
-            print(self.total_fuel) 
 
+        push_combobox.setCurrentIndex(push_map[car_strategy['pushLevel']])
         for index,value in enumerate(range(5), start=1):
           
           selected_tyre = car_strategy['strat'][index-1][0]
