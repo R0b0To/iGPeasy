@@ -4,11 +4,10 @@ from bs4 import BeautifulSoup
 class iGP_account:
     def __init__(self,account):
         self.session = aiohttp.ClientSession(raise_for_status=True)
-        print(self.session)
         self.username  = account['username']
         self.password  = account['password']
+        self.row_index = None
     async def fetch_url(self,fetch_url):
-        print(self.session)
         async with self.session.get(fetch_url) as response:
                 if response.status == 200:
                     json_response = json.loads(await response.text())
@@ -85,12 +84,12 @@ class iGP_account:
                         'csrfToken': ''}     
             async with self.session.post(login_url, data=login_data) as response:
                     if response.status == 200:
-                        print(f"Trying to login with {self.username}")
+                        print(f"Login with {self.username}")
                         response_text  = await response.text()
                         data = json.loads(response_text)
                         if data['status'] != 1:
                             return False
-                        print('initializing account')
+                        print('Success')
                         await self.init_account()
                         return True
                     else:
@@ -147,7 +146,6 @@ class iGP_account:
         self.staff = await self.staff_info()
     
     async def driver_info(self,id):
-        print('driver extra')
         json_data = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
         contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
         cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
@@ -429,7 +427,7 @@ class iGP_account:
         async with self.session.post(url, data=good_format) as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())
-                    print(f"saved strategy for: ",self.username)
+                    print(f"Saving {self.username}'s strategy")
         
 
         

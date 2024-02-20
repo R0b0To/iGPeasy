@@ -5,7 +5,7 @@ class CarSetup:
         self.driver_height = (int(height) // 5) * 5
         self.tier = tier_mapping[tier]
         self.suggested_setup = self.const_setup()
-        print(self.driver_height)
+
 
     def const_setup(self):
         scale = {

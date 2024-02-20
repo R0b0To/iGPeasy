@@ -153,7 +153,6 @@ class PopupWindow(QDialog):
             tyre =  f"ts-{tyre_map_rev[self.elements[i][1].currentIndex()]}"
             save['stints'][str(i)] = {'tyre':tyre,'laps':str(lap),'push':3}
         save['laps']['doing'] = int(doing_laps)
-        print('strategy saved')
         save_id = hash_code(str(save))
         
         
@@ -233,7 +232,9 @@ class PopupWindow(QDialog):
             grid_layout.addWidget(QLabel(self.account.sponsors['s1']['bonus']),2,0)
             grid_layout.addWidget(QLabel(self.account.sponsors['s1']['expire']),3,0)
         else:
-            income_list, bonus_list,id_list = self.account.pick_sponsor(1)
+            loop = asyncio.get_event_loop()
+            income_list, bonus_list,id_list = loop.run_until_complete(self.account.pick_sponsor(1))
+            
             combo1 = QComboBox()
             ids.append(id_list)
             combined_text = [f"{income_list[i]} , {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
@@ -246,7 +247,8 @@ class PopupWindow(QDialog):
             grid_layout.addWidget(QLabel(self.account.sponsors['s2']['bonus']),2,1)
             grid_layout.addWidget(QLabel(self.account.sponsors['s2']['expire']),3,1)
         else:
-            income_list, bonus_list, id_list = self.account.pick_sponsor(2)
+            loop = asyncio.get_event_loop()
+            income_list, bonus_list,id_list = loop.run_until_complete(self.account.pick_sponsor(2))
             combo2 = QComboBox()
             ids.append(id_list)
             combined_text = [f"{income_list[i]} , {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
@@ -263,10 +265,13 @@ class PopupWindow(QDialog):
             def send_sponsor_contract():
                 for i,combo in enumerate(comboboxes):
                     id  = combo.currentIndex()
-                    self.account.save_sponsor(combo.property('location'),ids[i][id])
+                    loop = asyncio.get_event_loop()
+                    loop.run_until_complete(self.account.save_sponsor(combo.property('location'),ids[i][id]))
                     self.parent().main_window.buttons[self.index].setText('2/2')
                     #update the new sposnsors
-                    self.account.get_sponsors()
+                    loop = asyncio.get_event_loop()
+                    loop.run_until_complete(self.account.get_sponsors())
+                    
                     self.accept()    
 
             confirm_button.clicked.connect(send_sponsor_contract)
@@ -451,7 +456,8 @@ class PopupWindow(QDialog):
             points_spent = ['&{}={}'.format(key, value) for key, value in zip(attribute_keys, spinbox_values)]
             attributes_to_save_string = ''.join(attributes_to_save)
             points_spent_to_save_string = ''.join(points_spent)
-            self.account.save_research(attributes_to_save_string,points_spent_to_save_string)
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(self.account.save_research(attributes_to_save_string,points_spent_to_save_string))
             self.accept()
         save_research.clicked.connect(on_save_research)
 
@@ -468,7 +474,7 @@ class PopupWindow(QDialog):
         physical_button = QPushButton('Physical', self)
 
 
-        print('training of: ',self.account.staff['drivers'][self.number])
+        #print('training of: ',self.account.staff['drivers'][self.number])
         
         driver = self.account.staff['drivers'][self.number]
         
@@ -477,9 +483,6 @@ class PopupWindow(QDialog):
         attributes_grid_layout.addWidget(physical_button,0,2)
         
         extra_driver_info = self.account.extra_driver_info
-        #await self.account.driver_info(driver['id'])
-        
-        print(extra_driver_info)
 
 
         self.talent =  QLabel(f"{driver['attributes'][1]} Talent")
@@ -961,7 +964,7 @@ class PopupWindow(QDialog):
 
         train_type_map = {'Driving':'ability','Mental':'mental','Physical':'physical','All':'all'} 
         train_type = self.sender().text()
-        print(f"{driver['id']} training {train_type} x{intensity}")
+        print(f"{driver['id']} type {train_type} x{intensity}")
         
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.account.train_driver(driver['id'],intensity,train_type_map[train_type]))
