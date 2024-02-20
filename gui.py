@@ -1,10 +1,12 @@
+import asyncio
 import json
 from tool_api import iGP_account
 from PyQt5.QtWidgets import QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt5.QtGui import QPixmap, QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt,pyqtSignal
 from track import Track
 import math
+
 
 class iGPWindow(QWidget):
     def __init__(self,parent):
@@ -121,7 +123,6 @@ class PopupWindow(QDialog):
                          'engine': self.init_engine_repair_popup,
                          'strategy': self.init_strategy_popup,
                          'contract': self.init_contract_popup,
-                         'driver': self.init_driver_popup,
                          'research': self.init_research_popup,
                          'sponsor': self.init_sponsor_popup,
                          'load': self.init_load_popup
@@ -191,13 +192,15 @@ class PopupWindow(QDialog):
 
 
         for i,stint in enumerate(strategy_to_load['strat']):
-            stint_fuel = int(stint[1]) * strategy_window.fuel_lap
-            ## to be replaced by self.elements[]
-            if strategy_window.fuel_rules != '0':
-                strategy_window.stint_fuel[i].setValue(math.ceil(stint_fuel)) 
-            else:
-                strategy_window.elements[i][3].setValue(int(stint[1]))      
-            strategy_window.stint_tyre[i].setCurrentIndex(tyre_map[stint[0]])
+            #in case the imported strategy have more than 4 pit stops
+            if i < 5:
+                stint_fuel = int(stint[1]) * strategy_window.fuel_lap
+                ## to be replaced by self.elements[]
+                if strategy_window.fuel_rules != '0':
+                    strategy_window.stint_fuel[i].setValue(math.ceil(stint_fuel)) 
+                else:
+                    strategy_window.elements[i][3].setValue(int(stint[1]))      
+                strategy_window.stint_tyre[i].setCurrentIndex(tyre_map[stint[0]])
 
 
 
@@ -335,7 +338,13 @@ class PopupWindow(QDialog):
         inner_layout  = QGridLayout()
 
         #{'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':research_power}
-        research_data = self.account.research_info()
+        
+        
+ 
+        loop = asyncio.get_event_loop()
+        research_data = loop.run_until_complete(self.account.research_info())
+        
+        
         self.options = []
         self.total_points = 200
         self.remaining_points = self.total_points
@@ -466,8 +475,11 @@ class PopupWindow(QDialog):
         attributes_grid_layout.addWidget(driving_button,0,0)
         attributes_grid_layout.addWidget(mental_button,0,1)
         attributes_grid_layout.addWidget(physical_button,0,2)
-        extra_driver_info = self.account.driver_info(driver['id'])
-
+        
+        extra_driver_info = self.account.extra_driver_info
+        #await self.account.driver_info(driver['id'])
+        
+        print(extra_driver_info)
 
 
         self.talent =  QLabel(f"{driver['attributes'][1]} Talent")
@@ -532,6 +544,7 @@ class PopupWindow(QDialog):
         layout.addLayout(attributes_grid_layout)
 
         self.setLayout(layout)
+
     
     def init_contract_popup(self):
         self.setWindowTitle('Contract')
@@ -541,7 +554,10 @@ class PopupWindow(QDialog):
         label = QLabel(f"{driver_info['contract']} - {driver_info['salary']}")
 
         button = QPushButton('extend', self)
-        contract_info = self.account.driver_info(driver_info['id'])['contract']
+        loop = asyncio.get_event_loop()
+        
+        loop.run_until_complete(self.account.driver_info(driver_info['id']))
+        contract_info =  self.account.extra_driver_info['contract']
 
         button.clicked.connect(self.update_main_button)
         layout.addWidget(label)
@@ -946,7 +962,11 @@ class PopupWindow(QDialog):
         train_type_map = {'Driving':'ability','Mental':'mental','Physical':'physical','All':'all'} 
         train_type = self.sender().text()
         print(f"{driver['id']} training {train_type} x{intensity}")
-        self.account.train_driver(driver['id'],intensity,train_type_map[train_type])
+        
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.account.train_driver(driver['id'],intensity,train_type_map[train_type]))
+       
+    
     def update_main_strategy(self):
         
         new_strat = self.parent().display_strat(self.account.strategy[self.number])
@@ -964,13 +984,14 @@ class PopupWindow(QDialog):
         # check if repaired
     def update_main_button(self):
 
+        loop = asyncio.get_event_loop()
         if self.type == 'parts':
-           self.response = self.account.request_parts_repair(self.account.car[self.number])
+           self.response= loop.run_until_complete(self.account.request_parts_repair(self.account.car[self.number]))
            self.account.car[0]['total_parts'] -= self.account.car[self.number]['repair_cost']
         elif self.type == 'engine':
-           self.response = self.account.request_engine_repair(self.account.car[self.number])
+           self.response = loop.run_until_complete(self.account.request_engine_repair(self.account.car[self.number]))
         elif self.type == 'contract':
-           self.response = self.account.extend_contract_driver(self.account.staff['drivers'][self.number])
+           self.response = loop.run_until_complete(self.account.extend_contract_driver(self.account.staff['drivers'][self.number]))
         new_value = self.response  # Here you can retrieve the value you want
         
         self.parent().main_window.buttons[self.index].setText(new_value)

@@ -1,3 +1,4 @@
+import asyncio
 import requests,json
 from tool_api import iGP_account
 from gui import PopupWindow, iGPWindow
@@ -7,28 +8,39 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton,QHBoxLayout, QFra
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QIcon
 
-def load_accounts():
-    with open('accounts.json', 'r') as json_file:
+async def async_load_accounts():
+    with open('accounts2.json', 'r') as json_file:
         accounts_list = json.load(json_file)
     
-    iGP_accounts = []
-    for account in accounts_list:
-        account = iGP_account(account)
-        if account.login():
-            iGP_accounts.append(account)
+    async def process_account(account):
+        igp_account = iGP_account(account)
+        if await igp_account.async_login():  # Assuming login is an asynchronous operation
+            return igp_account
 
-    return iGP_accounts
+    tasks = [process_account(account) for account in accounts_list]
+    iGP_accounts = await asyncio.gather(*tasks)
+    return [account for account in iGP_accounts if account is not None]
+
+
 
 
 class iGPeasyWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.main_window = iGPWindow(self)
-        self.valid_accounts = load_accounts()
-        self.initUI()
+        #self.valid_accounts = asyncio.run(async_load_accounts())
+        #asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.main())
+        #asyncio.run(self.main())
 
-    
-    def load_drivers(self,account):
+    async def main(self):
+        valid_accounts_task = async_load_accounts()
+        init_ui_task = self.initUI()
+        self.valid_accounts = await valid_accounts_task
+        await init_ui_task
+
+    async def load_drivers(self,account):
         inner_layout  = QGridLayout()
         row = 0
  
@@ -56,7 +68,7 @@ class iGPeasyWindow(QWidget):
                 #inner_layout.addWidget(QLabel(driver['health']),row,3)# 3 is health (need to add restore with token)
                 row+=1         
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 2,alignment=Qt.AlignTop)
-    def load_misc(self,account):
+    async def load_misc(self,account):
         inner_layout  = QGridLayout() 
         button = QPushButton( self)
         button.setIcon(QIcon('car_icon.png'))
@@ -66,7 +78,8 @@ class iGPeasyWindow(QWidget):
         button.setProperty('type','research')
         button.clicked.connect(lambda: self.on_modify_research(account))
         
-        sponsors = account.get_sponsors()
+        sponsors = await account.get_sponsors()
+
         button = QPushButton(sponsors, self)
         button.setFixedWidth(50)
         button.setProperty('type','sponsor')
@@ -75,7 +88,7 @@ class iGPeasyWindow(QWidget):
         button.clicked.connect(lambda: self.on_sponsor_click(account))
         #self.main_window.buttons.append(button)
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 3,alignment=Qt.AlignTop)
-    def load_daily(self,account):
+    async def load_daily(self,account):
         inner_layout  = QGridLayout()
 
         if 'page'in account.notify and'nDailyReward' in account.notify['page']:
@@ -85,15 +98,16 @@ class iGPeasyWindow(QWidget):
 
         reward_button = QPushButton('Daily')
         reward_button.setFixedWidth(50)
-        self.daily = reward_button
+        account.daily = reward_button
         reward_button.setDisabled(reward_status) 
         reward_button.clicked.connect(lambda: self.on_daily_pressed(account))
         inner_layout.addWidget(reward_button,0,0)
         self.main_window.main_grid.addLayout(inner_layout, self.account_row, 1,alignment=Qt.AlignTop)     
     def on_daily_pressed(self,account):
+         print('daily pressed')
          account.get_daily()
          self.sender().setDisabled(True)
-    def load_car(self,account):
+    async def load_car(self,account):
         inner_layout  = QGridLayout()
         row = 0
         for car in account.car:
@@ -208,7 +222,8 @@ class iGPeasyWindow(QWidget):
             self.main_window.main_grid.addLayout(inner_layout, self.account_row, 5,Qt.AlignLeft)
             account.save_setup_field(setups_elements)    
 
-    def initUI(self):
+    async def initUI(self):
+        print('starting')
         self.setWindowTitle('iGPeasy')
         self.setLayout(self.main_window.main_grid)
         
@@ -231,8 +246,8 @@ class iGPeasyWindow(QWidget):
 
             self.load_drivers(account)
             self.load_daily(account)
-            self.load_car(account)
-            self.load_misc(account)
+            await self.load_car(account)
+            await self.load_misc(account)
             self.load_strategy(account)
             self.account_row+=1
             
@@ -244,11 +259,17 @@ class iGPeasyWindow(QWidget):
 
         
         self.show()
+
+    def wait_request(self,req):
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(req)
+        return 
+
     def get_daily_from_all(self):
         for account in self.valid_accounts:
             if 'page'in account.notify and'nDailyReward' in account.notify['page']:
               print(account.get_daily())
-              self.daily.setDisabled(True)
+              account.daily.setDisabled(True)
             else:
               reward_status = True
              
@@ -299,17 +320,29 @@ class iGPeasyWindow(QWidget):
     def on_save_strategy(self):
        for account in self.valid_accounts:
             if account.has_league:
-                account.save_strategy()           
-    def on_button_clicked(self,account):            
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(account.save_strategy())
+                         
+
+    def on_button_clicked(self,account):
+         
+        print('button clicked')          
         sender_button = self.sender()  # Get the button that was clicked
         index = self.main_window.buttons.index(sender_button)
 
         number = sender_button.property('driver_index')
         type = sender_button.property('type')
 
-        
         popup = PopupWindow(self,index,{'type':type,'account':account,'number':number})
-        popup.exec_()
+        print('type is', type)
+        if type == 'driver':
+         driver = account.staff['drivers'][number]
+         loop = asyncio.get_event_loop()
+         loop.run_until_complete(account.driver_info(driver['id']))
+         popup.init_driver_popup()
+        popup.exec_() 
+        
+     
     def on_modify_research(self,account):        
         sender_button = self.sender()  # Get the button that was clicked
         index = self.main_window.buttons.index(sender_button)
