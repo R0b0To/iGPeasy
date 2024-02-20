@@ -244,8 +244,8 @@ class iGPeasyWindow(QWidget):
             self.main_window.main_grid.addLayout(inner_layout, self.account_row, 0,alignment=Qt.AlignTop)
             
 
-            self.load_drivers(account)
-            self.load_daily(account)
+            await self.load_drivers(account)
+            await self.load_daily(account)
             await self.load_car(account)
             await self.load_misc(account)
             self.load_strategy(account)
@@ -321,8 +321,8 @@ class iGPeasyWindow(QWidget):
        for account in self.valid_accounts:
             if account.has_league:
                 loop = asyncio.get_event_loop()
-                loop.run_until_complete(account.save_strategy())
-                         
+                loop.run_until_complete(account.save_strategy() )
+                          
 
     def on_button_clicked(self,account):
          
