@@ -757,9 +757,7 @@ class PopupWindow(QDialog):
                          stints.append([tyre,laps,0])
                     strategy = {'strat':stints,'pits':saved_pits}
                     self.valid_strat_layouts.append(strategy)
-            if valid_strat:
-                print('displaying')
-            else: 
+            if not valid_strat:
                 load_button.setDisabled(True)        
         else:
             load_button.setDisabled(True)

@@ -372,7 +372,7 @@ class iGP_account:
         strat_data =  {"d1setup":
                        {
                            "race":d1setup['raceId'],
-                           "rules":'default',
+                           "rules":json.dumps(str(self.strategy[0]['rulesJson']).replace('"', '\'')),
                            "suspension":str(d1setup['suspension']),
                            "ride":str(d1setup['ride']),
                            "aerodynamics":str(d1setup['aero']),
@@ -421,8 +421,9 @@ class iGP_account:
             if strat['rules']['refuelling'] == '0':
                 strat_data[f'd{i+1}strategyAdvanced']['advancedFuel'] = strat['advancedFuel']
 
-
         good_format =  str(strat_data).replace("'", "\"")
+        good_format =good_format.replace('""',"\"")
+
         #response =  self.session.post(url, data=good_format)
         async with self.session.post(url, data=good_format) as response:
                 if response.status == 200:
