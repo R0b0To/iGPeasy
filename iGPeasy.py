@@ -115,6 +115,7 @@ class iGPeasyWindow(QWidget):
                 engine = car['engine']
 
                 button = QPushButton(parts, self)
+                account.parts_button = button
                 button.setFixedWidth(40)
                 inner_layout.addWidget(button,row,0,Qt.AlignCenter)# 0 is parts need to add repair button
                 button.clicked.connect(lambda: self.on_button_clicked(account))
@@ -249,6 +250,7 @@ class iGPeasyWindow(QWidget):
         
 
     def get_daily_from_all(self):
+        #async for?
         for account in self.valid_accounts:
             if 'page'in account.notify and'nDailyReward' in account.notify['page']:
               # to do, parse reward text
@@ -258,7 +260,15 @@ class iGPeasyWindow(QWidget):
               account.daily.setDisabled(True)
             else:
               reward_status = True
-             
+    def repair_all_parts(self):
+        for account in self.valid_accounts: 
+            loop = asyncio.get_event_loop()
+            for car in account.car: 
+                 #handle if parts aren't enough
+                 if int(car['parts'].strip('%')) != 100: 
+                    loop.run_until_complete(account.request_parts_repair(car))
+                    account.parts_button.setText('100%') 
+                    account.parts_button.setDisabled(True)        
     def on_setup_clicked(self):  
         for account in self.valid_accounts:
             if account.has_league:

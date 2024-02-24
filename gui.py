@@ -54,7 +54,10 @@ class iGPWindow(QWidget):
     def init_car_tab(self):
         inner_layout  = QGridLayout()
         inner_layout.addWidget(QLabel('Car'), 0, 0)
-        inner_layout.addWidget(QLabel('Parts'),1,0)
+        button = QPushButton('Parts', self)
+        button.setFixedWidth(50)
+        inner_layout.addWidget(button,1,0)
+        button.clicked.connect(lambda: self.parent.repair_all_parts())
         inner_layout.addWidget(QLabel('Engine'),1,1)
         self.car_tab = inner_layout
         return inner_layout
@@ -181,6 +184,7 @@ class PopupWindow(QDialog):
           
         self.setLayout(mainlayout)
     def load_strategy(self):
+        
         self.setWindowTitle('load strategy')
         self.accept()
         strategy_window = self.parent()
@@ -200,8 +204,6 @@ class PopupWindow(QDialog):
                 else:
                     strategy_window.elements[i][3].setValue(int(stint[1]))      
                 strategy_window.stint_tyre[i].setCurrentIndex(tyre_map[stint[0]])
-
-
 
     def init_parts_popup(self):
         self.setWindowTitle('Parts repair')
@@ -603,7 +605,7 @@ class PopupWindow(QDialog):
             img_label.setFixedWidth(22)
             img_label.setScaledContents(True)
 
-        self.setWindowTitle('Strategy')
+        self.setWindowTitle(f"{self.account.strategy[0]['raceName']} - two tyres: {self.account.strategy[0]['rules']['two_tyres']}")
         grid_layout  = QGridLayout()
         
         tyre_SS_img = QLabel()

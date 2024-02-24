@@ -7,6 +7,7 @@ class iGP_account:
         self.username  = account['username']
         self.password  = account['password']
         self.row_index = None
+        self.parts_button = None
     async def fetch_url(self,fetch_url):
         async with self.session.get(fetch_url) as response:
                 if response.status == 200:
