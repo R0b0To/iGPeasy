@@ -9,7 +9,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QIcon
 
 async def async_load_accounts():
-    with open('accounts2.json', 'r') as json_file:
+    with open('accounts.json', 'r') as json_file:
         accounts_list = json.load(json_file)
     
     async def process_account(account):
