@@ -235,7 +235,7 @@ class iGPeasyWindow(QWidget):
     
     async def process_account(self,index,account):
         inner_layout = QGridLayout()
-        account_text_label = QLabel(account.username)
+        account_text_label = QLabel(account.nickname if account.nickname else account.username)
         account_text_label.setFixedHeight(22)
         inner_layout.addWidget(account_text_label, 0, 0)
         account.row_index = index+1

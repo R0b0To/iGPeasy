@@ -6,6 +6,10 @@ class iGP_account:
         self.session = aiohttp.ClientSession(raise_for_status=True)
         self.username  = account['username']
         self.password  = account['password']
+        if 'nickname' in account:
+            self.nickname  = account['nickname']
+        else:
+            self.nickname = None
         self.row_index = None
         self.parts_button = None
     async def fetch_url(self,fetch_url):
