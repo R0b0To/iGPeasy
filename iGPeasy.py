@@ -1,4 +1,5 @@
 import asyncio
+import re
 import requests,json
 from tool_api import iGP_account
 from gui import PopupWindow, iGPWindow
@@ -50,6 +51,9 @@ class iGPeasyWindow(QWidget):
 
                 name_text.clicked.connect(lambda: self.on_button_clicked(account))
                 extend_contract = QPushButton(driver['contract'],self)
+                int_contract = int(re.findall(r'\d+', driver['contract'])[0])
+                if int_contract <= 4:
+                    extend_contract.setStyleSheet("background-color: red")
                 extend_contract.clicked.connect(lambda: self.on_button_clicked(account))
                 self.main_window.buttons.append(extend_contract)
                 self.main_window.buttons.append(name_text)
