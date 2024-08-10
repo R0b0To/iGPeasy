@@ -594,6 +594,7 @@ class PopupWindow(QDialog):
         reversed_push_map = {0:'100',1:'80',2:'60',3:'40',4:'20'}
         added_push = {0:0.02,1:0.0081,2:0,3:-0.004,4:-0.007}
         car_strategy = self.account.strategy[self.number]
+        
         self.trackCode = self.account.strategy[0]['trackCode']
         self.tier = Track().info[self.trackCode][self.account.strategy[0]['raceLaps']]
         self.fuel_km = Track.fuel_calc(self.account.car[0]['fuel_economy'])
@@ -688,6 +689,18 @@ class PopupWindow(QDialog):
             self.fuel_lap = (self.fuel_km + added_push[index]) * self.track_length
             car_strategy['pushLevel'] = reversed_push_map[index]
             update_total_laps()
+
+        def on_depth_box_changed(index):
+            car_strategy['rainStart'][0] =  tyre_map_rev[index]
+
+        def on_stop_box_changed(index):
+            car_strategy['rainStop'][0] =  tyre_map_rev[index]
+        
+        def on_depth_changed(text):
+            car_strategy['rainStart'][1] = text
+        def on_stop_changed(text):
+            car_strategy['rainStop'][1] = text
+
 
         def tyre_select():
             tyre_select_box = QComboBox()
@@ -813,6 +826,10 @@ class PopupWindow(QDialog):
             else:
                 car_strategy['advanced'] = '1'
         advanced_grid = QGridLayout()
+        tyre_select_if_rain = tyre_select()
+        tyre_select_if_rain.setCurrentIndex(tyre_map[car_strategy['rainStart'][0]]) 
+        tyre_select_if_stop = tyre_select()
+        tyre_select_if_stop.setCurrentIndex(tyre_map[car_strategy['rainStop'][0]]) 
         
         adv_checkbox = QCheckBox('Enable advanced')
         if car_strategy['advanced'] == '0':
@@ -821,18 +838,41 @@ class PopupWindow(QDialog):
         push_combobox.addItems(["very high","high","neutral","low","very low" ])
         push_map = {'100':0,'80':1,'60':2,'40':3,'20':4}
         push_combobox.currentIndexChanged.connect(on_push_box_changed)
+        tyre_select_if_rain.currentIndexChanged.connect(on_depth_box_changed)
+        tyre_select_if_stop.currentIndexChanged.connect(on_stop_box_changed)
         adv_checkbox.stateChanged.connect(advanced_status_changed)
         
         advanced_grid.addWidget(adv_checkbox,0,0)
         advanced_grid.addWidget(QLabel('Push'),1,0)
         advanced_grid.addWidget(push_combobox,1,1)
+        advanced_grid.addWidget(QLabel('Use'),3,0)
+        advanced_grid.addWidget(QLabel('Use'),4,0)
+        advanced_grid.addWidget(tyre_select_if_rain,3,1)
+        advanced_grid.addWidget(tyre_select_if_stop,4,1)
+        advanced_grid.addWidget(QLabel('If raining (mm)'),3,2)
+        advanced_grid.addWidget(QLabel('If stops for (laps)'),4,2)
+        
+        def spinbox(max,value):
+            spinbox_ele = QSpinBox()
+            spinbox_ele.setMaximum(max)
+            spinbox_ele.setFixedWidth(100)
+            spinbox_ele.setAlignment(Qt.AlignCenter)
+            spinbox_ele.setValue(int(value))
+            return spinbox_ele
+        
+
+
+        depth = spinbox(5,car_strategy['rainStart'][1])
+        stop = spinbox(50,car_strategy['rainStop'][1])
+        
+        depth.textChanged.connect(on_depth_changed)
+        stop.textChanged.connect(on_stop_changed)
+        
+        advanced_grid.addWidget(depth,3,3)
+        advanced_grid.addWidget(stop,4,3)
         
         if self.fuel_rules == '0':
-            fuel_load = QSpinBox()
-            fuel_load.setMaximum(200)
-            fuel_load.setFixedWidth(100)
-            fuel_load.setAlignment(Qt.AlignCenter)
-            fuel_load.setValue(int(car_strategy['advancedFuel']))
+            fuel_load = spinbox(200,car_strategy['advancedFuel'])
             self.account.strategy[self.number]['fuel_load'] = car_strategy['advancedFuel']
             fuel_load.textChanged.connect(self.fuel_load_changed)  
             self.fuel_lap = round((self.fuel_km + added_push[push_combobox.currentIndex()]) * self.track_length,2)

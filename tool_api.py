@@ -290,6 +290,8 @@ class iGP_account:
                                      'aero':json_data['d1Aerodynamics'],
                                      'ride':json_data['d1Ride'],
                                      'pits':json_data['d1Pits'],
+                                     'rainStart':[json_data['d1RainStartTyre'],BeautifulSoup(json_data['d1RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
+                                     'rainStop':[json_data['d1RainStopTyre'],BeautifulSoup(json_data['d1RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d1PushLevel'], 'html.parser').find('option',selected=True)['value'],
                                      'strat': saved_strat,
                                      'raceId':json_data['raceId'],
@@ -306,6 +308,8 @@ class iGP_account:
                                      'aero':json_data['d2Aerodynamics'],
                                      'ride':json_data['d2Ride'],
                                      'pits':json_data['d2Pits'],
+                                     'rainStart':[json_data['d2RainStartTyre'],BeautifulSoup(json_data['d2RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
+                                     'rainStop':[json_data['d2RainStopTyre'],BeautifulSoup(json_data['d2RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
                                      'strat':saved_strat})
 
@@ -347,10 +351,10 @@ class iGP_account:
                            "pushLevel":self.strategy[1]['pushLevel'],
                            "d1SavedStrategy":"1",
                            "ignoreAdvancedStrategy":self.strategy[1]['advanced'],
-                           "rainStartTyre":"I",
-                           "rainStartDepth":"0",
-                           "rainStopTyre":"M",
-                           "rainStopLap":"0"
+                           "rainStartTyre":self.strategy[1]['rainStart'][0],
+                           "rainStartDepth":self.strategy[1]['rainStart'][1],
+                           "rainStopTyre":self.strategy[1]['rainStop'][0],
+                           "rainStopLap":self.strategy[1]['rainStop'][1]
                         }
         else:
             d2setup = {
@@ -415,10 +419,10 @@ class iGP_account:
                            "pushLevel":self.strategy[0]['pushLevel'],
                            "d1SavedStrategy":"1",
                            "ignoreAdvancedStrategy":self.strategy[0]['advanced'],
-                           "rainStartTyre":"I",
-                           "rainStartDepth":"0",
-                           "rainStopTyre":"M",
-                           "rainStopLap":"0"
+                           "rainStartTyre":self.strategy[0]['rainStart'][0],
+                           "rainStartDepth":self.strategy[0]['rainStart'][1],
+                           "rainStopTyre":self.strategy[0]['rainStop'][0],
+                           "rainStopLap":self.strategy[0]['rainStop'][1]
                         },
                         "d2strategyAdvanced":d2strategyAdvanced
                     }  
