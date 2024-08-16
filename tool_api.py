@@ -1,4 +1,4 @@
-import requests, re, json, time, aiohttp
+import re, json, time, aiohttp
 from bs4 import BeautifulSoup
 
 class iGP_account:

@@ -1,6 +1,6 @@
 import asyncio
 import re
-import requests,json
+import json
 from tool_api import iGP_account
 from gui import PopupWindow, iGPWindow
 from setups import CarSetup
@@ -22,7 +22,16 @@ async def async_load_accounts():
     iGP_accounts = await asyncio.gather(*tasks)
     return [account for account in iGP_accounts if account is not None]
 
-
+def abbreviate_number(n):
+        """Convert a large number into a more readable string with a suffix."""
+        suffixes = ['', 'K', 'M', 'B', 'T', 'P', 'E', 'Z', 'Y']
+        magnitude = 0
+    
+        while abs(n) >= 1000 and magnitude < len(suffixes) - 1:
+            magnitude += 1
+            n /= 1000.0
+    
+        return f'{n:.1f}{suffixes[magnitude]}'
 
 
 class iGPeasyWindow(QWidget):
@@ -41,6 +50,7 @@ class iGPeasyWindow(QWidget):
         self.valid_accounts = await valid_accounts_task
         await init_ui_task
 
+    
     async def load_drivers(self,account):
         inner_layout  = QGridLayout()
         row = 0
@@ -68,8 +78,13 @@ class iGPeasyWindow(QWidget):
                 inner_layout.addWidget(extend_contract,row,1)# 2 is contract, (need to add extend contract button)
 
                 row+=1         
-        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 2,alignment=Qt.AlignTop)
-    
+        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 3,alignment=Qt.AlignTop)
+    async def load_currency(self,account):
+         inner_layout  = QGridLayout()
+         tokens = account.manager['tokens']
+         balance = abbreviate_number(int(account.team['_balance']))
+         inner_layout.addWidget(QLabel(f"{balance} | {tokens}"))
+         self.main_window.main_grid.addLayout(inner_layout, account.row_index, 1,alignment=Qt.AlignTop) 
     async def load_misc(self,account):
         inner_layout  = QGridLayout() 
         button = QPushButton( self)
@@ -89,7 +104,7 @@ class iGPeasyWindow(QWidget):
         self.main_window.buttons.append(button)
         button.clicked.connect(lambda: self.on_sponsor_click(account))
 
-        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 3,alignment=Qt.AlignTop)
+        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 4,alignment=Qt.AlignTop)
 
     async def load_daily(self,account):
         inner_layout  = QGridLayout()
@@ -105,7 +120,8 @@ class iGPeasyWindow(QWidget):
         reward_button.setDisabled(reward_status) 
         reward_button.clicked.connect(lambda: self.on_daily_pressed(account))
         inner_layout.addWidget(reward_button,0,0)
-        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 1,alignment=Qt.AlignTop)     
+        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 2,alignment=Qt.AlignTop) 
+            
     def on_daily_pressed(self,account):
          loop = asyncio.get_event_loop()
          loop.run_until_complete(account.get_daily())
@@ -142,7 +158,7 @@ class iGPeasyWindow(QWidget):
                     button.setEnabled(False)              
 
                 row+=1         
-        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 4,alignment=Qt.AlignTop)
+        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 5,alignment=Qt.AlignTop)
     def display_strat(self,full_strategy):
             strategy = full_strategy['strat']
             pits = int(full_strategy['pits'])
@@ -223,7 +239,7 @@ class iGPeasyWindow(QWidget):
                     #inner_layout.addWidget(QLabel(display_strat(driver)),row,2)# 1 is engine
                     row+=1
                     setups_elements.append([select_box,ride_field,aero_field])         
-            self.main_window.main_grid.addLayout(inner_layout, account.row_index, 5,Qt.AlignLeft)
+            self.main_window.main_grid.addLayout(inner_layout, account.row_index, 6,Qt.AlignLeft)
             account.save_setup_field(setups_elements)    
 
     async def initUI(self):
@@ -244,9 +260,9 @@ class iGPeasyWindow(QWidget):
         inner_layout.addWidget(account_text_label, 0, 0)
         account.row_index = index+1
         self.main_window.main_grid.addLayout(inner_layout,account.row_index , 0, alignment=Qt.AlignTop)
-        
 
         await self.load_drivers(account)
+        await self.load_currency(account)
         await self.load_daily(account)
         await self.load_car(account)
         await self.load_misc(account)

@@ -1,9 +1,8 @@
 import asyncio
 import json
-from tool_api import iGP_account
 from PyQt5.QtWidgets import QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt5.QtGui import QPixmap, QIcon
-from PyQt5.QtCore import Qt,pyqtSignal
+from PyQt5.QtCore import Qt
 from track import Track
 import math
 
@@ -29,6 +28,13 @@ class iGPWindow(QWidget):
         daily_button.clicked.connect(lambda: self.parent.get_daily_from_all())
         self.daily_tab = inner_layout
         return inner_layout
+    def init_info_tab(self):
+        inner_layout  = QGridLayout()
+        inner_layout.addWidget(QLabel(''), 0, 0,)
+        inner_layout.addWidget(QLabel('Balance'),1,0)
+        self.account_tab = inner_layout
+        return inner_layout
+    
     def init_accout_tab(self):
         inner_layout  = QGridLayout()
         inner_layout.addWidget(QLabel(''), 0, 0,)
@@ -103,11 +109,12 @@ class iGPWindow(QWidget):
         
         self.setWindowTitle("iGPeasy")
         self.main_grid.addLayout(self.init_accout_tab(), 0, 0,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_daily_tab(), 0, 1,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_driver_tab(), 0, 2,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_misc_tab(), 0, 3,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_car_tab()   , 0, 4,alignment=Qt.AlignTop)
-        self.main_grid.addLayout(self.init_race_tab()  , 0, 5,alignment=Qt.AlignLeft)
+        self.main_grid.addLayout(self.init_info_tab(), 0, 1,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_daily_tab(), 0, 2,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_driver_tab(), 0, 3,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_misc_tab(), 0, 4,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_car_tab()   , 0, 5,alignment=Qt.AlignTop)
+        self.main_grid.addLayout(self.init_race_tab()  , 0, 6,alignment=Qt.AlignLeft)
 
 class PopupWindow(QDialog):
     def __init__(self, parent=None, index= None, config=None, optional=None):
@@ -594,7 +601,6 @@ class PopupWindow(QDialog):
         reversed_push_map = {0:'100',1:'80',2:'60',3:'40',4:'20'}
         added_push = {0:0.02,1:0.0081,2:0,3:-0.004,4:-0.007}
         car_strategy = self.account.strategy[self.number]
-        
         self.trackCode = self.account.strategy[0]['trackCode']
         self.tier = Track().info[self.trackCode][self.account.strategy[0]['raceLaps']]
         self.fuel_km = Track.fuel_calc(self.account.car[0]['fuel_economy'])
