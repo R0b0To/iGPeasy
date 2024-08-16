@@ -50,7 +50,6 @@ class iGPeasyWindow(QWidget):
         self.valid_accounts = await valid_accounts_task
         await init_ui_task
 
-    
     async def load_drivers(self,account):
         inner_layout  = QGridLayout()
         row = 0
@@ -58,6 +57,7 @@ class iGPeasyWindow(QWidget):
         for driver in account.staff['drivers']:
                 name_text = QPushButton(driver['name'],self)
                 name_text.setFixedWidth(90)
+                name_text.setStyleSheet("font-size: 8pt;")
 
                 name_text.clicked.connect(lambda: self.on_button_clicked(account))
                 extend_contract = QPushButton(driver['contract'],self)
@@ -120,8 +120,7 @@ class iGPeasyWindow(QWidget):
         reward_button.setDisabled(reward_status) 
         reward_button.clicked.connect(lambda: self.on_daily_pressed(account))
         inner_layout.addWidget(reward_button,0,0)
-        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 2,alignment=Qt.AlignTop) 
-            
+        self.main_window.main_grid.addLayout(inner_layout, account.row_index, 2,alignment=Qt.AlignTop)           
     def on_daily_pressed(self,account):
          loop = asyncio.get_event_loop()
          loop.run_until_complete(account.get_daily())
@@ -135,6 +134,7 @@ class iGPeasyWindow(QWidget):
                 engine = car['engine']
 
                 button = QPushButton(parts, self)
+                button.setStyleSheet("font-size: 8pt;")
                 account.parts_button = button
                 button.setFixedWidth(40)
                 inner_layout.addWidget(button,row,0,Qt.AlignCenter)# 0 is parts need to add repair button
@@ -148,6 +148,7 @@ class iGPeasyWindow(QWidget):
                 if int(parts.strip('%')) == 100: 
                     button.setEnabled(False)
                 button = QPushButton(engine, self)
+                button.setStyleSheet("font-size: 8pt;")
                 button.setFixedWidth(40)
                 inner_layout.addWidget(button,row,1,Qt.AlignCenter)# 1 is engine
                 button.clicked.connect(lambda: self.on_button_clicked(account))
