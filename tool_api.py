@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 class iGP_account:
     def __init__(self,account):
         self.session = aiohttp.ClientSession(raise_for_status=True)
+        self.pyqt_elements = {}
         self.username  = account['username']
         self.password  = account['password']
         if 'nickname' in account:
@@ -294,6 +295,7 @@ class iGP_account:
                                      'rainStop':[json_data['d1RainStopTyre'],BeautifulSoup(json_data['d1RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d1PushLevel'], 'html.parser').find('option',selected=True)['value'],
                                      'strat': saved_strat,
+                                     'totalLaps' :json_data['d1TotalLaps'],
                                      'raceId':json_data['raceId'],
                                      'tier':json_data['setupMax']})
                     # check if 2 cars
@@ -308,6 +310,7 @@ class iGP_account:
                                      'aero':json_data['d2Aerodynamics'],
                                      'ride':json_data['d2Ride'],
                                      'pits':json_data['d2Pits'],
+                                     'totalLaps' :json_data['d2TotalLaps'],
                                      'rainStart':[json_data['d2RainStartTyre'],BeautifulSoup(json_data['d2RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'rainStop':[json_data['d2RainStopTyre'],BeautifulSoup(json_data['d2RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
@@ -433,6 +436,8 @@ class iGP_account:
         good_format =  str(strat_data).replace("'", "\"")
         good_format =good_format.replace('""',"\"")
 
+
+        print('saving...')
         #response =  self.session.post(url, data=good_format)
         async with self.session.post(url, data=good_format) as response:
                 if response.status == 200:

@@ -1,5 +1,4 @@
 aiohttp
 beautifulsoup4
-PyQt5
-PyQt5_sip
+PyQt6
 Requests
