@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from PyQt6.QtWidgets import QMainWindow,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt6.QtGui import QPixmap, QIcon,QPalette,QIntValidator,QFont
 from PyQt6.QtCore import Qt,QSize
@@ -746,6 +747,9 @@ class iGPeasyWindow(QMainWindow):
             print("Data saved to accounts.json")
         def load_json_offsets():
             try:
+                if not os.path.exists('offsets.json'):
+                    with open('offsets.json', 'w') as json_file:
+                        json.dump([], json_file)
                 with open('offsets.json', 'r') as f:
                     return json.load(f)
             except FileNotFoundError:

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from tool_api import iGP_account
 from interface import iGPeasyWindow
 #from setups import CarSetup
@@ -16,6 +17,10 @@ class iGPeasy:
         #loop.run_until_complete(self.main())
 
     async def play(self):
+        if not os.path.exists('accounts.json'):
+        # Create an empty JSON file with an empty list or dictionary
+            with open('accounts.json', 'w') as json_file:
+                json.dump([], json_file)
         with open('accounts.json', 'r') as json_file:
             accounts_list = json.load(json_file)
         async def process_account(account):
