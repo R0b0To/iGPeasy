@@ -707,13 +707,14 @@ class iGPeasyWindow(QMainWindow):
         self.popup_account = AccountPopup(self)
         self.setWindowTitle("iGPeasy")
         self.menuBar().addMenu('settings')
-        self.setGeometry(100, 100, 1700, 1700)
-        self.setCentralWidget(self.accounts_container)
-        self.showMaximized()
+        
 
 
         #self.init_window()
-    
+    def show_window(self):
+        self.setGeometry(100, 100, 1700, 1700)
+        self.setCentralWidget(self.accounts_container)
+        self.showMaximized()
         
 
     def add_accounts_popup(self):
@@ -739,8 +740,10 @@ class iGPeasyWindow(QMainWindow):
             self.open_account_button = self.open_account_button
         
         self.main_layout.addWidget(self.open_account_button)
+        self.show_window()
     
     async def init_window(self):
+        
         def save_json_offsets():
             with open('offsets.json', 'w') as f:
                 json.dump(offsets, f, indent=4)
@@ -756,16 +759,23 @@ class iGPeasyWindow(QMainWindow):
                 print("No data file found. Please save data first.")
             except json.JSONDecodeError:
                 print("Error decoding the JSON file. The file might be corrupted.") 
-        def account_group_box(account):
+        async def account_group_box(account):
             box = QGroupBox(f"{account.nickname} lv. {account.manager["level"]}")
             box.setMaximumSize(QSize(1920,190))
             box.setMinimumSize(QSize(500,190))
             
             
         # --- Start of Section 1, widget with money, token, daily and sponsor---
-            misc_grid_layout = QGridLayout()
+            misc_tab_widget = QTabWidget()
+            misc_tab_1 = QWidget()
+            misc_tab_1_layout = QGridLayout()
+            misc_tab_2 = QWidget()
+            misc_tab_2_layout = QGridLayout()
+            misc_tab_3 = QWidget()
+            misc_tab_3_layout = QGridLayout()
+            
+            misc_tab_1_layout = QGridLayout()
             box_layout = QHBoxLayout()
-            misc_widget = QWidget()
             daily_button = QPushButton("Daily") #check if already pressed
             if 'page'in account.notify and'nDailyReward' in account.notify['page']:
               reward_status = False
@@ -778,7 +788,41 @@ class iGPeasyWindow(QMainWindow):
 
             daily_button.setDisabled(reward_status)
             daily_button.clicked.connect(get_daily)
-            sponsor_button = QPushButton("Sponsor")
+            sponsor_button_1 = QPushButton("Sponsor 1")
+            sponsor_button_2 = QPushButton("Sponsor 2")
+            sponsor_1_select = QComboBox()
+            sponsor_2_select = QComboBox()
+            sponsor_2_select.setEditable(True)
+            sponsor_1_select.setEditable(True)
+            sponsor_2_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
+            sponsor_1_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
+            sponsors_id = []
+            
+            async def get_sponsor_list(number,combo):
+                task =asyncio.create_task(account.pick_sponsor(number))
+                res = await asyncio.gather(task)
+                income_list, bonus_list,id_list = res[0]
+                combined_text = [f"{income_list[i]} , {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
+                combo.addItems(combined_text)
+                sponsors_id.append(id_list)
+                return combo
+
+            async def handle_sponsor(sponsor_key, sponsor_select, sponsor_button):
+                sponsor = account.sponsors[sponsor_key]
+
+                if not sponsor['status']:
+                    await get_sponsor_list(int(sponsor_key[-1]), sponsor_select)
+                    sponsor_button.setText('Press to Confirm')
+                else:
+                    sponsor_select.addItem(f"{sponsor['income']}, {sponsor['bonus']}")
+                    sponsor_button.setText(sponsor['expire'])
+                    sponsor_button.setDisabled(True)
+                    sponsor_select.setDisabled(True)
+
+            await handle_sponsor('s1', sponsor_1_select, sponsor_button_1)
+            await handle_sponsor('s2', sponsor_2_select, sponsor_button_2)
+            
+            
             money_label = QLabel(iGPeasyHelp.abbreviate_number(int(account.team['_balance'])))
             token_label = QLabel(account.manager['tokens'])
             token_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -788,12 +832,22 @@ class iGPeasyWindow(QMainWindow):
             img_label.setPixmap(token_img)
             img_label.setScaledContents(True)
             img_label.setFixedSize(QSize(14,14))
-            misc_grid_layout.addWidget(money_label,0,0,1,1)
-            misc_grid_layout.addWidget(img_label,0,1,1,1)
-            misc_grid_layout.addWidget(token_label,0,1,1,1)
-            misc_grid_layout.addWidget(daily_button,1,0,1,1)
-            misc_grid_layout.addWidget(sponsor_button,1,1,1,1)
-            misc_widget.setLayout(misc_grid_layout) 
+            misc_tab_1_layout.addWidget(money_label,0,0,1,1)
+            misc_tab_1_layout.addWidget(img_label,1,0,1,1)
+            misc_tab_1_layout.addWidget(token_label,1,0,1,1)
+            misc_tab_1_layout.addWidget(daily_button,2,0,1,1)
+            misc_tab_3_layout.addWidget(sponsor_button_1,0,0,1,2)
+            misc_tab_3_layout.addWidget(sponsor_button_2,2,0,1,2)
+            misc_tab_3_layout.addWidget(sponsor_1_select,1,0,1,2)
+            misc_tab_3_layout.addWidget(sponsor_2_select,3,0,1,2)
+            misc_tab_1.setLayout(misc_tab_1_layout) 
+            misc_tab_2.setLayout(misc_tab_2_layout) 
+            misc_tab_3.setLayout(misc_tab_3_layout) 
+            misc_tab_widget.addTab(misc_tab_1,"misc")
+            misc_tab_widget.addTab(misc_tab_2,"car")
+            misc_tab_widget.addTab(misc_tab_3,"sponsor")
+
+            misc_tab_widget.setFixedWidth(170)
         # --- End of Section 1 ---
             if account.has_league:
             # --- Start of Section 2 ---
@@ -808,6 +862,7 @@ class iGPeasyWindow(QMainWindow):
                     race_info_grid_layout.addWidget(race_weather_label,2,0,1,1)
                     race_info_grid_layout.addWidget(car_design_button,3,0,1,1)
                     race_info_widget.setLayout(race_info_grid_layout)
+                    race_info_widget.setFixedWidth(150)
                       
                     # --- End of Section 2 --- 
             car_design_button = None
@@ -900,6 +955,7 @@ class iGPeasyWindow(QMainWindow):
                 driver_info_widget.addTab(tab_1,'Driver')
                 driver_info_widget.addTab(tab_2,'More')
                 driver_info_widget.addTab(tab_3,'Practice')
+                driver_info_widget.setFixedWidth(170)
                 # --- End of Section 4 ---
 
 
@@ -1139,7 +1195,7 @@ class iGPeasyWindow(QMainWindow):
 
                 #suspension_selection.setFixedWidth(60) 
             box_layout.addWidget(save_button)
-            box_layout.addWidget(misc_widget)
+            box_layout.addWidget(misc_tab_widget)
             if account.has_league: box_layout.addWidget(race_info_widget)
             strategy_widget = []
 
@@ -1163,16 +1219,20 @@ class iGPeasyWindow(QMainWindow):
                                      'daily':daily_button,
                                      'design':car_design_button,
                                      'save':save_button}
-            
 
         self.accounts = self.parent.valid_accounts
         offsets = load_json_offsets()
         
-        ## for with list of aacounts
+        tasks = []
         for account in self.accounts:
-            account_group_box(account)
+            print('loading', account.username)
+            tasks.append(asyncio.create_task(account_group_box(account)))
+
+            # Await all tasks to complete
+        await asyncio.gather(*tasks)
         self.main_layout.addStretch()
         
+        self.show_window()
         #print(self.main_layout.sizeHint())
         #print(self.accounts_container.sizeHint())
         #self.resize(self.main_layout.sizeHint())

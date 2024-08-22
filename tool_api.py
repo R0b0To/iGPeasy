@@ -48,6 +48,7 @@ class iGP_account:
         self.car = await self.car_info()
         self.staff = await self.staff_info()
         self.strategy = await self.next_race_info()
+        await self.get_sponsors()
     async def research_info(self):
         research_display = await self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=research&csrfName=&csrfToken=")
         car_overview= await self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=design&csrfName=&csrfToken=")
@@ -189,7 +190,7 @@ class iGP_account:
                 if response.status == 200:
                     json_data = json.loads(await response.text())['vars']
                     contract = 0
-                    empty_sponsor = {'income':'0','bonus':'0','expire':'0'}
+                    empty_sponsor = {'income':'0','bonus':'0','expire':'0','status':False}
                     sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
                     #primary
                     if json_data['s1Name'] == '':
@@ -199,6 +200,7 @@ class iGP_account:
                         sponsors['s1']['income'] = contract_soup[1].contents[2].text
                         sponsors['s1']['bonus'] = contract_soup[3].text
                         sponsors['s1']['expire'] = contract_soup[5].text
+                        sponsors['s1']['status'] = True
                         contract+=1
                     #secondary
                     if json_data['s2Name'] == '':
@@ -208,10 +210,11 @@ class iGP_account:
                         sponsors['s2']['income'] = contract_soup[1].text
                         sponsors['s2']['bonus'] = contract_soup[3].text
                         sponsors['s2']['expire'] = contract_soup[5].text
+                        sponsors['s2']['status'] = True
                         contract+=1 
 
                     self.sponsors = sponsors        
-
+                    print(self.sponsors,self.nickname)
 
                     return f"{contract}/2"
     async def save_sponsor(self,number,id):
