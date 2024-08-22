@@ -136,15 +136,14 @@ class PopupHandler(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.strategy_popup_initialized = False
-        
+        self.center_of_parent()
     def center_of_parent(self):
         # Center the popup on the parent window
         if self.parent():
-            parent_rect = self.parent().geometry()
-            popup_rect = self.geometry()
-            x = parent_rect.x() + (parent_rect.width() - popup_rect.width()) // 2
-            y = parent_rect.y() + (parent_rect.height() - popup_rect.height()) // 2 
-            return [x,y]
+            parent_rect = self.parent().frameGeometry()
+            popup_rect = self.frameGeometry()
+            popup_rect.moveCenter(parent_rect.center())
+            self.move(popup_rect.topLeft())
 
     def load_strategy(self):
         strategy_to_load = self.sender().property('strat')
@@ -161,7 +160,7 @@ class PopupHandler(QDialog):
     
     def strategy_popup(self):
         self.saved_strategies = None
-
+        self.center_of_parent()
         if self.saved_strategies == None:
             with open('save.json', 'r') as json_file:
                 self.saved_strategies = json.load(json_file)['save']
@@ -223,7 +222,7 @@ class PopupHandler(QDialog):
         
 
         self.setWindowTitle(f"{self.account.strategy[0]['raceName']} - {race_rule}")
-        self.setGeometry(*self.center_of_parent(), 350, 540)
+        
         
         
         opened_driver_index = self.driver_index
@@ -685,26 +684,9 @@ class PopupHandler(QDialog):
         load_game_data()
 
         self.setLayout(self.strategy_popup_initialized['main_layout'])
+        
         self.show()
        
-
-
-
-
-
-
-
-        
-        
-        
-
-
-
-
-
-
-
-
 
 
 
@@ -714,6 +696,7 @@ class iGPeasyWindow(QMainWindow):
     def __init__(self,parent):
         super().__init__()
         self.parent=parent
+ 
         self.open_account_button = False
         self.iGPeasyWindow_initialized = False
         self.main_layout =  QVBoxLayout()
@@ -723,12 +706,14 @@ class iGPeasyWindow(QMainWindow):
         self.popup_account = AccountPopup(self)
         self.setWindowTitle("iGPeasy")
         self.menuBar().addMenu('settings')
-        self.setGeometry(100, 100, 1700, 250)
+        self.setGeometry(100, 100, 1700, 1700)
         self.setCentralWidget(self.accounts_container)
         self.showMaximized()
 
 
         #self.init_window()
+    
+        
 
     def add_accounts_popup(self):
         def clear_open_account_button():
@@ -772,6 +757,7 @@ class iGPeasyWindow(QMainWindow):
             box.setMaximumSize(QSize(1920,190))
             box.setMinimumSize(QSize(500,190))
             
+            
         # --- Start of Section 1, widget with money, token, daily and sponsor---
             misc_grid_layout = QGridLayout()
             box_layout = QHBoxLayout()
@@ -781,8 +767,13 @@ class iGPeasyWindow(QMainWindow):
               reward_status = False
             else:
               reward_status = True
-            
+            def get_daily():
+                loop = asyncio.get_event_loop()
+                response = loop.run_until_complete(account.get_daily())
+                account.pyqt_elements['daily'].setDisabled(True)
+
             daily_button.setDisabled(reward_status)
+            daily_button.clicked.connect(get_daily)
             sponsor_button = QPushButton("Sponsor")
             money_label = QLabel(iGPeasyHelp.abbreviate_number(int(account.team['_balance'])))
             token_label = QLabel(account.manager['tokens'])
@@ -800,23 +791,53 @@ class iGPeasyWindow(QMainWindow):
             misc_grid_layout.addWidget(sponsor_button,1,1,1,1)
             misc_widget.setLayout(misc_grid_layout) 
         # --- End of Section 1 ---
+            if account.has_league:
+            # --- Start of Section 2 ---
+                    race_info_widget = QWidget()
+                    race_info_grid_layout = QGridLayout()
+                    race_name_label = QLabel(account.strategy[0]['raceName'])
+                    race_time_label = QLabel(account.strategy[0]['raceTime'])
+                    race_weather_label = QLabel(account.strategy[0]['pWeather'])
+                    car_design_button =QPushButton('car/research')
+                    race_info_grid_layout.addWidget(race_name_label,0,0,1,1)
+                    race_info_grid_layout.addWidget(race_time_label,1,0,1,1)
+                    race_info_grid_layout.addWidget(race_weather_label,2,0,1,1)
+                    race_info_grid_layout.addWidget(car_design_button,3,0,1,1)
+                    race_info_widget.setLayout(race_info_grid_layout)
+                      
+                    # --- End of Section 2 --- 
+            car_design_button = None
 
-        # --- Start of Section 2 ---
-            race_info_widget = QWidget()
-            race_info_grid_layout = QGridLayout()
-            race_name_label = QLabel(account.strategy[0]['raceName'])
-            race_time_label = QLabel(account.strategy[0]['raceTime'])
-            race_weather_label = QLabel(account.strategy[0]['pWeather'])
-            car_design_button =QPushButton('car/research')
-            race_info_grid_layout.addWidget(race_name_label,0,0,1,1)
-            race_info_grid_layout.addWidget(race_time_label,1,0,1,1)
-            race_info_grid_layout.addWidget(race_weather_label,2,0,1,1)
-            race_info_grid_layout.addWidget(car_design_button,3,0,1,1)
-            race_info_widget.setLayout(race_info_grid_layout)
-        # --- End of Section 2 ---    
-            pyqt_strategy_elements = []
             def driver_setup(driver_index):
-                
+                def repair_parts():
+                    print('attempt to repair parts of',account.nickname,driver_index)
+                    loop = asyncio.get_event_loop()
+                    response = loop.run_until_complete(account.request_parts_repair(account.car[driver_index]))
+                    if response == False:
+                        print('already repaired or out of engines')
+                    else:
+                        account.car[0]['total_parts'] = response
+                        #parts are shared so it needs to update all the labels
+                        for car in account.setup_pyqt_elements:
+                            car['parts'][0].setText(str(response))
+                        #update the button only for the car requested   
+                        account.setup_pyqt_elements[driver_index]['parts'][1].setText("100%")
+                        account.setup_pyqt_elements[driver_index]['parts'][1].setDisabled(True)
+                def repair_engine():
+                    print('attempt to repair engine of',account.nickname,driver_index)
+                    loop = asyncio.get_event_loop()
+                    response = loop.run_until_complete(account.request_engine_repair(account.car[driver_index]))
+                    if response == False:
+                        print('already repaired or out of engines')
+                    else:
+                        account.car[0]['total_engines'] = response
+                        for car in account.setup_pyqt_elements:
+                            car['engine'][0].setText(str(response))
+
+                        account.setup_pyqt_elements[driver_index]['engine'][1].setText("100%")
+                        account.setup_pyqt_elements[driver_index]['engine'][1].setDisabled(True)
+                    
+                    
                 strategy_widget = QWidget()
                 strategy_widget_layout = QHBoxLayout()
                 # --- Start of Section 3 ---
@@ -828,7 +849,13 @@ class iGPeasyWindow(QMainWindow):
                 parts_text = QLabel(str(account.car[0]['total_parts'])) #engine and parts are shared, only 1st driver has the values
                 engine_text = QLabel(str(account.car[0]['total_engines']))
                 parts_button = QPushButton(account.car[driver_index]['parts'])
-                engine_button = QPushButton(account.car[driver_index]['parts'])
+                parts_button.clicked.connect(repair_parts)
+                engine_button = QPushButton(account.car[driver_index]['engine'])
+                if account.car[driver_index]['engine'] == "100%":
+                    engine_button.setDisabled(True)
+                if account.car[driver_index]['parts'] == "100%":
+                    parts_button.setDisabled(True)
+                engine_button.clicked.connect(repair_engine)
                 car_condition_layout.addWidget(header_car_condition_1,0,1,1,1)
                 car_condition_layout.addWidget(parts_car_condition_label,1,0,1,1)
                 car_condition_layout.addWidget(engine_car_condition_label,2,0,1,1)
@@ -886,53 +913,68 @@ class iGPeasyWindow(QMainWindow):
                         driver_id = account.staff['drivers'][driver_index]['id']
                         offsets[driver_id][1] = int(self)
 
-
-
+                strategy_widget_layout.addWidget(car_condition_widget)
+                strategy_widget_layout.addWidget(driver_info_widget)
+                
+                setup_pyqt_elements =  {'parts':0,
+                                               'engine':0,
+                                               'setup':{'ride':0,
+                                                        'ride_offset':0,
+                                                        'wing':0,
+                                                        'wing_offset':0,
+                                                        'suspension':0,
+                                                        'ideal':0},
+                                                'strategy':{'modify':0,
+                                                            'preview':0,
+                                                            }}
+                
+                if account.has_league:
+                     
                 # --- Start of Section 5 ---
-                strategy_setup_container = QWidget()
-                strategy_setup_container_layout = QHBoxLayout()
-                setup_container = QWidget()
-                setup_container_layout = QGridLayout()
-                suspension_selection = QComboBox()
-                suspension_selection.addItems(['Soft','Neutral','Firm'])
-                suspension_selection.setCurrentIndex(int(account.strategy[driver_index]['suspension'])-1)
-                ride_height_label = QLabel('height')
-                wing_label = QLabel('wing')
-                ride_height_input = QLineEdit()
-                #ride_height_input.setProperty('driver_index',driver_index)
-                ride_height_input.textChanged.connect(ride_change)
-                ride_height_input_offset =QLineEdit()
-                ride_height_input_offset.textChanged.connect(ride_offset_change)
-                int_validator = QIntValidator()
-                int_validator.setRange(1, 25)
-                offset_validator = QIntValidator()
-                offset_validator.setRange(-25,25)
-                ride_height_input.setValidator(int_validator)
-                ride_height_input_offset.setValidator(offset_validator)
-                # self.account -> staff -> driver -> id
-                driver_id = account.staff['drivers'][driver_index]['id']
-                if driver_id not in offsets:
-                        offsets[driver_id] = [0] * 2
-                saved_ride_offset_value = offsets.get(driver_id)[1]
-                ride_height_input_offset.setText(str(saved_ride_offset_value))
-                ride_height_input.setText(str(account.strategy[driver_index]['ride']))
-                wing_input = QLineEdit()
-                wing_input_offset = QLineEdit()
-                wing_input.textChanged.connect(wing_change)
-                wing_input_offset.textChanged.connect(wing_offset_change)
-                saved_wing_offset_value = offsets.get(driver_id)[0]
-                wing_input_offset.setText(str(saved_wing_offset_value))
-                wing_input.setValidator(int_validator)
-                wing_input_offset.setValidator(offset_validator)
+                    strategy_setup_container = QWidget()
+                    strategy_setup_container_layout = QHBoxLayout()
+                    setup_container = QWidget()
+                    setup_container_layout = QGridLayout()
+                    suspension_selection = QComboBox()
+                    suspension_selection.addItems(['Soft','Neutral','Firm'])
+                    suspension_selection.setCurrentIndex(int(account.strategy[driver_index]['suspension'])-1)
+                    ride_height_label = QLabel('height')
+                    wing_label = QLabel('wing')
+                    ride_height_input = QLineEdit()
+                    #ride_height_input.setProperty('driver_index',driver_index)
+                    ride_height_input.textChanged.connect(ride_change)
+                    ride_height_input_offset =QLineEdit()
+                    ride_height_input_offset.textChanged.connect(ride_offset_change)
+                    int_validator = QIntValidator()
+                    int_validator.setRange(1, 25)
+                    offset_validator = QIntValidator()
+                    offset_validator.setRange(-25,25)
+                    ride_height_input.setValidator(int_validator)
+                    ride_height_input_offset.setValidator(offset_validator)
+                    # self.account -> staff -> driver -> id
+                    driver_id = account.staff['drivers'][driver_index]['id']
+                    if driver_id not in offsets:
+                            offsets[driver_id] = [0] * 2
+                    saved_ride_offset_value = offsets.get(driver_id)[1]
+                    ride_height_input_offset.setText(str(saved_ride_offset_value))
+                    ride_height_input.setText(str(account.strategy[driver_index]['ride']))
+                    wing_input = QLineEdit()
+                    wing_input_offset = QLineEdit()
+                    wing_input.textChanged.connect(wing_change)
+                    wing_input_offset.textChanged.connect(wing_offset_change)
+                    saved_wing_offset_value = offsets.get(driver_id)[0]
+                    wing_input_offset.setText(str(saved_wing_offset_value))
+                    wing_input.setValidator(int_validator)
+                    wing_input_offset.setValidator(offset_validator)
 
-                wing_input.setText(str(account.strategy[driver_index]['aero']))
-                qedit_size = QSize(30,28)
-                ride_height_input.setFixedSize(qedit_size)
-                ride_height_input_offset.setFixedSize(qedit_size)
-                wing_input.setFixedSize(qedit_size)
-                wing_input_offset.setFixedSize(qedit_size)
-                ideal_button = QPushButton("suggested")
-                def on_suggested_setup_clicked(self):
+                    wing_input.setText(str(account.strategy[driver_index]['aero']))
+                    qedit_size = QSize(30,28)
+                    ride_height_input.setFixedSize(qedit_size)
+                    ride_height_input_offset.setFixedSize(qedit_size)
+                    wing_input.setFixedSize(qedit_size)
+                    wing_input_offset.setFixedSize(qedit_size)
+                    ideal_button = QPushButton("suggested")
+                    def on_suggested_setup_clicked(self):
                         if account.has_league:
                             suggested_setup = CarSetup(account.strategy[0]['trackCode'],account.staff['drivers'][driver_index]['height'],account.strategy[0]['tier'])
                 
@@ -940,109 +982,122 @@ class iGPeasyWindow(QMainWindow):
                             aero = str(suggested_setup.wing)
                             suspension = suggested_setup.suspension
 
-                            account.pyqt_elements['strategy_group'][driver_index]['setup']['suspension'].setCurrentIndex(suspension)
-                            account.pyqt_elements['strategy_group'][driver_index]['setup']['ride'].setText(ride)
-                            account.pyqt_elements['strategy_group'][driver_index]['setup']['wing'].setText(aero)
+                            account.setup_pyqt_elements[driver_index]['setup']['suspension'].setCurrentIndex(suspension)
+                            account.setup_pyqt_elements[driver_index]['setup']['ride'].setText(ride)
+                            account.setup_pyqt_elements[driver_index]['setup']['wing'].setText(aero)
 
                             account.strategy[driver_index]['ride'] = ride
                             account.strategy[driver_index]['aero'] = aero
                             account.strategy[driver_index]['suspension'] = suspension +1
 
-                ideal_button.clicked.connect(on_suggested_setup_clicked)
-                setup_container_layout.addWidget(suspension_selection,0,0,1,3)
-                setup_container_layout.addWidget(ride_height_label,1,0,1,1)
-                setup_container_layout.addWidget(wing_label,2,0,1,1)
-                setup_container_layout.addWidget(ride_height_input,1,1,1,1)
-                setup_container_layout.addWidget(wing_input,2,1,1,1)
-                setup_container_layout.addWidget(ride_height_input_offset,1,2,1,1)
-                setup_container_layout.addWidget(wing_input_offset,2,2,1,1)
-                setup_container_layout.addWidget(ideal_button,3,0,1,3)
-                setup_container.setLayout(setup_container_layout)
-                setup_container.setMaximumSize(QSize(100,190))
-                setup_container.setMinimumSize(QSize(120,140))
-                
-                class display_strat():
-                    def __init__(self,strategy_container,race_laps):
-                          self.parent = strategy_container 
-                          self.race_laps = race_laps
-                         
-                          
-                    def update_preview(self,full_strategy):
-        
-                        old_layout = self.container.layout()
-                        for i in reversed(range(old_layout.count())): 
-                            widgetToRemove = old_layout.itemAt(i).widget()
-                            # remove it from the layout list
-                            old_layout.removeWidget(widgetToRemove)
-                            # remove it from the gui
-                            widgetToRemove.setParent(None)
-                        self.estimate_laps.setParent(None)  
-                       
-                        self.generate_preview(full_strategy)
+                    ideal_button.clicked.connect(on_suggested_setup_clicked)
+                    setup_container_layout.addWidget(suspension_selection,0,0,1,3)
+                    setup_container_layout.addWidget(ride_height_label,1,0,1,1)
+                    setup_container_layout.addWidget(wing_label,2,0,1,1)
+                    setup_container_layout.addWidget(ride_height_input,1,1,1,1)
+                    setup_container_layout.addWidget(wing_input,2,1,1,1)
+                    setup_container_layout.addWidget(ride_height_input_offset,1,2,1,1)
+                    setup_container_layout.addWidget(wing_input_offset,2,2,1,1)
+                    setup_container_layout.addWidget(ideal_button,3,0,1,3)
+                    setup_container.setLayout(setup_container_layout)
+                    setup_container.setMaximumSize(QSize(100,190))
+                    setup_container.setMinimumSize(QSize(120,140))
+                    setup_pyqt = {'ride':ride_height_input,
+                                  'ride_offset':ride_height_input_offset,
+                                  'wing':wing_input,
+                                  'wing_offset':wing_input_offset,
+                                  'suspension':suspension_selection,
+                                  'ideal':ideal_button}
+                    setup_pyqt_elements['setup'] = setup_pyqt
+                    class display_strat():
+                        def __init__(self,strategy_container,race_laps):
+                              self.parent = strategy_container 
+                              self.race_laps = race_laps
 
 
-                    def generate_preview(self,full_strategy):
-                        self.container = QWidget()
-                        strategy = full_strategy['strat']
-                        pits = int(full_strategy['pits'])
-                        inner_layout  = QGridLayout()
-                        column = 1
+                        def update_preview(self,full_strategy):
                         
-                        # [tyre,lap,fuel]
-                        total_laps = 0
-                        for arr in strategy[:pits+1]:
-                            img_label = QLabel()
-                            label = QLabel(arr[1])
-                            label.setStyleSheet("color: white")
-                            tyre_img = QPixmap(f'tyres/{arr[0]}.png')
-                            total_laps += int(arr[1])
-                            img_label.setPixmap(tyre_img)
-                            img_label.setFixedHeight(30)
-                            img_label.setFixedWidth(30)
-                            img_label.setScaledContents(True)
-                            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                            inner_layout.addWidget(img_label,0,column)
-                            inner_layout.addWidget(label,0,column,1,1)
-                            column += 1
-                        
-                        self.container.setLayout(inner_layout) 
-                        self.estimate_laps = QLabel(f" Total laps estimate: {str(total_laps)}/ {self.race_laps}")
-                        self.parent.addWidget(self.estimate_laps,3,0,1,1)
-                        self.parent.addWidget(self.container,1,0,2,4)
-                        
-                strategy_container = QWidget()
-                strategy_container_layout = QGridLayout()
-                
-                preview_strat = display_strat(strategy_container_layout,str(account.strategy[0]['raceLaps']))
-                preview_strat.generate_preview(account.strategy[driver_index])
-                #strategy_container_layout.addWidget(preview_strat.generate_preview(self.account.strategy[driver_index]),1,0,2,4) # strategy displayed here ----------
-                
-                #strategy_container.setMaximumSize(QSize(180,190))
-                #strategy_container.setMinimumSize(QSize(180,140))
-                modify_strategy_button = QPushButton('modify')
-                modify_strategy_button.setProperty('account',account)
-                modify_strategy_button.setProperty('driver_index',driver_index)
-                modify_strategy_button.setProperty('preview',preview_strat)
-                modify_strategy_button.clicked.connect(self.popup.strategy_popup)
-                def close_popup():
-                    preview_strat.update_preview(account.strategy[driver_index])
-                self.popup.finished.connect(close_popup)
-                strategy_preview_container = QWidget()
-                strategy_preview_container_layout = QHBoxLayout()
-                strategy_container_layout.addWidget(modify_strategy_button,0,0,1,1)
-                
-                strategy_preview_container.setLayout(strategy_preview_container_layout)
-                strategy_container_layout.addWidget(strategy_preview_container,1,0,4,1)
-                strategy_container.setLayout(strategy_container_layout)
-                strategy_setup_container_layout.addWidget(setup_container)
-                strategy_setup_container_layout.addWidget(strategy_container)
-                strategy_setup_container.setLayout(strategy_setup_container_layout)
+                            old_layout = self.container.layout()
+                            for i in reversed(range(old_layout.count())): 
+                                widgetToRemove = old_layout.itemAt(i).widget()
+                                # remove it from the layout list
+                                old_layout.removeWidget(widgetToRemove)
+                                # remove it from the gui
+                                widgetToRemove.setParent(None)
+                            self.estimate_laps.setParent(None)  
+
+                            self.generate_preview(full_strategy)
+
+
+                        def generate_preview(self,full_strategy):
+                            self.container = QWidget()
+                            strategy = full_strategy['strat']
+                            pits = int(full_strategy['pits'])
+                            inner_layout  = QGridLayout()
+                            column = 1
+
+                            # [tyre,lap,fuel]
+                            total_laps = 0
+                            for arr in strategy[:pits+1]:
+                                img_label = QLabel()
+                                label = QLabel(arr[1])
+                                label.setStyleSheet("color: white")
+                                tyre_img = QPixmap(f'tyres/{arr[0]}.png')
+                                total_laps += int(arr[1])
+                                img_label.setPixmap(tyre_img)
+                                img_label.setFixedHeight(30)
+                                img_label.setFixedWidth(30)
+                                img_label.setScaledContents(True)
+                                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                                inner_layout.addWidget(img_label,0,column)
+                                inner_layout.addWidget(label,0,column,1,1)
+                                column += 1
+
+                            self.container.setLayout(inner_layout) 
+                            self.estimate_laps = QLabel(f" Total laps estimate: {str(total_laps)}/ {self.race_laps}")
+                            self.parent.addWidget(self.estimate_laps,3,0,1,1)
+                            self.parent.addWidget(self.container,1,0,2,4)
+                    
+                    strategy_container = QWidget()
+                    strategy_container_layout = QGridLayout()
+
+                    preview_strat = display_strat(strategy_container_layout,str(account.strategy[0]['raceLaps']))
+                    preview_strat.generate_preview(account.strategy[driver_index])
+                    #strategy_container_layout.addWidget(preview_strat.generate_preview(self.account.strategy[driver_index]),1,0,2,4) # strategy displayed here ----------
+
+                    #strategy_container.setMaximumSize(QSize(180,190))
+                    #strategy_container.setMinimumSize(QSize(180,140))
+                    modify_strategy_button = QPushButton('modify')
+                    modify_strategy_button.setProperty('account',account)
+                    modify_strategy_button.setProperty('driver_index',driver_index)
+                    modify_strategy_button.setProperty('preview',preview_strat)
+                    modify_strategy_button.clicked.connect(self.popup.strategy_popup)
+                    def close_popup():
+                        preview_strat.update_preview(account.strategy[driver_index])
+                    self.popup.finished.connect(close_popup)
+                    strategy_preview_container = QWidget()
+                    strategy_preview_container_layout = QHBoxLayout()
+                    strategy_container_layout.addWidget(modify_strategy_button,0,0,1,1)
+
+                    strategy_preview_container.setLayout(strategy_preview_container_layout)
+                    strategy_container_layout.addWidget(strategy_preview_container,1,0,4,1)
+                    strategy_container.setLayout(strategy_container_layout)
+                    strategy_setup_container_layout.addWidget(setup_container)
+                    strategy_setup_container_layout.addWidget(strategy_container)
+                    strategy_setup_container.setLayout(strategy_setup_container_layout)
+                    strategy_widget_layout.addWidget(strategy_setup_container)
+                    
+                    
+                    strategy_pyqt = {'modify':modify_strategy_button,
+                                     'preview':strategy_preview_container_layout,
+                                    }
+                    setup_pyqt_elements['strategy'] = strategy_pyqt
+                    
                 
                 
                 # --- End of Section 5 ---
-                strategy_widget_layout.addWidget(car_condition_widget)
-                strategy_widget_layout.addWidget(driver_info_widget)
-                strategy_widget_layout.addWidget(strategy_setup_container)
+                
+                
                 strategy_widget.setLayout(strategy_widget_layout)
                 palette = self.palette()
                 background_color = palette.color(QPalette.ColorRole.Window)
@@ -1052,18 +1107,14 @@ class iGPeasyWindow(QMainWindow):
                 widget_palette.setColor(QPalette.ColorRole.Window, darkened_color)
                 strategy_widget.setPalette(widget_palette)
                 #strategy_widget.setStyleSheet("background-color: lightblue;")
-                pyqt_strategy_elements.append({'parts':[parts_text,parts_button],
-                                               'engine':[engine_text,engine_button],
-                                               'setup':{'ride':ride_height_input,
-                                                        'ride_offset':ride_height_input_offset,
-                                                        'wing':wing_input,
-                                                        'wing_offset':wing_input_offset,
-                                                        'suspension':suspension_selection,
-                                                        'ideal':ideal_button},
-                                                'strategy':{'modify':modify_strategy_button,
-                                                            'preview':strategy_preview_container_layout,
-                                                            }})
                 
+                setup_pyqt_elements['parts'] = [parts_text,parts_button]
+                setup_pyqt_elements['engine'] = [engine_text,engine_button]
+
+                
+                
+                account.setup_pyqt_elements.append(setup_pyqt_elements)
+
                 return strategy_widget
                 
 
@@ -1073,8 +1124,8 @@ class iGPeasyWindow(QMainWindow):
                 if account.has_league:
                     save_json_offsets()
                     for driver_index in range(len(account.strategy)):
-                        account.strategy[driver_index]['ride'] = str(int(account.strategy[driver_index]['ride']) + int(account.pyqt_elements['strategy_group'][driver_index]['setup']['ride_offset'].text()))
-                        account.strategy[driver_index]['aero'] = str(int(account.strategy[driver_index]['aero']) + int(account.pyqt_elements['strategy_group'][driver_index]['setup']['wing_offset'].text()))
+                        account.strategy[driver_index]['ride'] = str(int(account.strategy[driver_index]['ride']) + int(account.setup_pyqt_elements[driver_index]['setup']['ride_offset'].text()))
+                        account.strategy[driver_index]['aero'] = str(int(account.strategy[driver_index]['aero']) + int(account.setup_pyqt_elements[driver_index]['setup']['wing_offset'].text()))
                         
                             
                     loop = asyncio.get_event_loop()
@@ -1085,12 +1136,19 @@ class iGPeasyWindow(QMainWindow):
                 #suspension_selection.setFixedWidth(60) 
             box_layout.addWidget(save_button)
             box_layout.addWidget(misc_widget)
-            box_layout.addWidget(race_info_widget)
+            if account.has_league: box_layout.addWidget(race_info_widget)
             strategy_widget = []
-            for index in range(len(account.strategy)):
+
+            number_of_driver_widgets = 0 
+            if account.strategy != False:
+                number_of_driver_widgets = len(account.strategy)
+            else:
+                number_of_driver_widgets = min(len(account.staff['drivers']),2)
+            for index in range(number_of_driver_widgets):
                 strategy_widget.append(driver_setup(index))
             for strategy in strategy_widget:
                 box_layout.addWidget(strategy)
+            
             box_layout.addStretch()
             
             box.setLayout(box_layout)
@@ -1100,8 +1158,7 @@ class iGPeasyWindow(QMainWindow):
                                      'tokens':token_label,
                                      'daily':daily_button,
                                      'design':car_design_button,
-                                     'save':save_button,
-                                     'strategy_group':pyqt_strategy_elements}
+                                     'save':save_button}
             
 
         self.accounts = self.parent.valid_accounts

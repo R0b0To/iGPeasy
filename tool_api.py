@@ -5,6 +5,7 @@ class iGP_account:
     def __init__(self,account):
         self.session = aiohttp.ClientSession(raise_for_status=True)
         self.pyqt_elements = {}
+        self.setup_pyqt_elements = [] #list because there could be 2 cars
         self.username  = account['username']
         self.password  = account['password']
         if 'nickname' in account:
@@ -13,13 +14,15 @@ class iGP_account:
             self.nickname = None
         self.row_index = None
         self.parts_button = None
+    
+    
     async def fetch_url(self,fetch_url):
         async with self.session.get(fetch_url) as response:
                 if response.status == 200:
                     json_response = json.loads(await response.text())
 
                     if 'vars' not in json_response:
-                       return 'contract?' 
+                       return json_response 
 
                     json_data = json_response['vars']
                     return json_data
@@ -76,7 +79,10 @@ class iGP_account:
         async with self.session.post(url) as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())
-                    return json_data
+                    soup = BeautifulSoup(json_data['message'], 'html.parser')
+                    #xp gain is '<span>5</span><img src="https://igpmanager.com/app/design/dr-xp.png" class="drSubImage" />'
+                    #money '<span>$16k</span><img src="https://igpmanager.com/app/design/dr-cash.png" class="drSubImage" />'
+                    return soup.find('span').get_text()
     def save_setup_field(self,pyqt_elements):
         self.setups = pyqt_elements
     async def async_login(self):
@@ -447,12 +453,22 @@ class iGP_account:
 
         
     async def request_parts_repair(self,car):
-        await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken=")
-        return '100%'
+        if car['parts'] == "100%" or self.car[0]['total_parts'] < car['repair_cost'] :
+            return False
+        response = await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken=")
+        if response['update'] != False:
+            return response['newTotal']
+        else:
+            return 'err'
     async def request_engine_repair(self,car):
-        await self.fetch_url( f"https://igpmanager.com/index.php?action=send&type=engine&car={car['id']}&btn=%23c{car['car_number']}EngSwap&jsReply=fix&csrfName=&csrfToken=")
-        #to do check response to see if engine was repaired
-        return '100%'
+        if car['engine'] == "100%" or self.car[0]['total_parts'] == 0:
+            return False
+        
+        response = await self.fetch_url( f"https://igpmanager.com/index.php?action=send&type=engine&car={car['id']}&btn=%23c{car['car_number']}EngSwap&jsReply=fix&csrfName=&csrfToken=")
+        if response['update'] != False:
+            return response['newTotal']
+        else:
+            return 'err'
     async def extend_contract_driver(self,driver):
         await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=contract&enact=extend&eType=3&eId={driver['id']}&jsReply=contract&csrfName=&csrfToken=")
         
