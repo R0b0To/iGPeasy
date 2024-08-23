@@ -5,6 +5,7 @@ import sys
 from tool_api import iGP_account
 from interface import iGPeasyWindow
 from PyQt6.QtWidgets import QApplication
+from qasync import QEventLoop
 
 class iGPeasy:
     def __init__(self):
@@ -53,13 +54,22 @@ class iGPeasy:
                 await self.gui.init_window()
                 print('Window initialized.')
 
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     igpeasy_app = iGPeasy()
-    
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(igpeasy_app.play())
+
+    # Setup the QEventLoop for asyncio integration
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
+
+    # Start the igpeasy_app.play() method automatically when the application starts
+    async def main():
+        await igpeasy_app.play()
+
+    # Start the application with the integrated event loop
+    with loop:
+        loop.run_until_complete(main())  # Run the main async function and keep the event loop running
+        loop.run_forever()
 
     sys.exit(app.exec())

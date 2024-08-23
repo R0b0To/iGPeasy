@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt,QSize
 import math
 from helpers import iGPeasyHelp, Section, CustomComboBox,Track
 from setups import CarSetup
+from qasync import  asyncSlot
 
 class AccountPopup(QDialog):
     def __init__(self, parent=None):
@@ -716,8 +717,8 @@ class iGPeasyWindow(QMainWindow):
         self.setCentralWidget(self.accounts_container)
         self.showMaximized()
         
-
-    def add_accounts_popup(self):
+    @asyncSlot()
+    async def add_accounts_popup(self):
         def clear_open_account_button():
             #it will be neccessary to remove the accounts widgets when the popup is opened from the menubar
             self.open_account_button.setParent(None)
@@ -726,8 +727,9 @@ class iGPeasyWindow(QMainWindow):
         self.popup_account.finished.connect(clear_open_account_button)   
         self.popup_account.exec()
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.parent.play())
+        await self.parent.play()
+        #loop = asyncio.get_event_loop()
+        #loop.run_until_complete(self.parent.play())
 
     async def add_accounts_to_start(self):
         #simple button
@@ -759,6 +761,8 @@ class iGPeasyWindow(QMainWindow):
                 print("No data file found. Please save data first.")
             except json.JSONDecodeError:
                 print("Error decoding the JSON file. The file might be corrupted.") 
+        
+        
         async def account_group_box(account):
             box = QGroupBox(f"{account.nickname} lv. {account.manager["level"]}")
             box.setMaximumSize(QSize(1920,190))
@@ -781,22 +785,27 @@ class iGPeasyWindow(QMainWindow):
               reward_status = False
             else:
               reward_status = True
-            def get_daily():
-                loop = asyncio.get_event_loop()
-                response = loop.run_until_complete(account.get_daily())
+            
+            @asyncSlot()  
+            async def get_daily(self):
+                #loop = asyncio.get_event_loop()
+                #response = loop.run_until_complete(account.get_daily())
+                res = await account.get_daily()
                 account.pyqt_elements['daily'].setDisabled(True)
 
             daily_button.setDisabled(reward_status)
             daily_button.clicked.connect(get_daily)
             sponsor_button_1 = QPushButton("Sponsor 1")
+            sponsor_button_1.setProperty('location',1)
             sponsor_button_2 = QPushButton("Sponsor 2")
+            sponsor_button_2.setProperty('location',2)
             sponsor_1_select = QComboBox()
             sponsor_2_select = QComboBox()
-            sponsor_2_select.setEditable(True)
-            sponsor_1_select.setEditable(True)
-            sponsor_2_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
-            sponsor_1_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
-            sponsors_id = []
+            #sponsor_2_select.setEditable(True)
+            #sponsor_1_select.setEditable(True)
+            #sponsor_2_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
+            #sponsor_1_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
+
             
             async def get_sponsor_list(number,combo):
                 task =asyncio.create_task(account.pick_sponsor(number))
@@ -804,14 +813,50 @@ class iGPeasyWindow(QMainWindow):
                 income_list, bonus_list,id_list = res[0]
                 combined_text = [f"{income_list[i]} , {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
                 combo.addItems(combined_text)
-                sponsors_id.append(id_list)
-                return combo
+                combo.setProperty('id',id_list)
 
-            async def handle_sponsor(sponsor_key, sponsor_select, sponsor_button):
+
+                return combo
+            
+            @asyncSlot()
+            async def handle_sponsor_req(combo,btn):
+                btn.setDisabled(True)
+                combo.setDisabled(True)
+                btn.setText('10 race(s)')
+                #get list again
+                #repopulate other combo
+                sponsor_key = combo.property('location')
+                #update the other keys?
+                account.sponsors[sponsor_key]['status'] = True
+                combo.clear()
+                await handle_sponsor(combo,btn)
+
+
+            @asyncSlot()
+            async def save_sponsor_contract_1(self):
+                    combo = sponsor_1_select
+                    id  = combo.currentIndex()
+                    res = await account.save_sponsor(1,combo.property('id')[id])
+                    handle_sponsor_req(combo,sponsor_button_1)
+                    #update the new sposnsors / refresh the other
+                    #loop = asyncio.get_event_loop()
+                    #loop.run_until_complete(self.account.get_sponsors())
+            @asyncSlot()        
+            async def save_sponsor_contract_2(self):
+                    combo = sponsor_2_select
+                    id  = combo.currentIndex()
+                    res = await account.save_sponsor(2,combo.property('id')[id])
+                    handle_sponsor_req(combo,sponsor_button_2)
+
+                    #update the new sposnsors / refresh the other
+                    #loop = asyncio.get_event_loop()
+                    #loop.run_until_complete(self.account.get_sponsors())
+            async def handle_sponsor(sponsor_select, sponsor_button):
+                sponsor_key = sponsor_select.property('location')
                 sponsor = account.sponsors[sponsor_key]
 
                 if not sponsor['status']:
-                    await get_sponsor_list(int(sponsor_key[-1]), sponsor_select)
+                    await get_sponsor_list(int(sponsor_key), sponsor_select)
                     sponsor_button.setText('Press to Confirm')
                 else:
                     sponsor_select.addItem(f"{sponsor['income']}, {sponsor['bonus']}")
@@ -821,7 +866,8 @@ class iGPeasyWindow(QMainWindow):
 
             await handle_sponsor('s1', sponsor_1_select, sponsor_button_1)
             await handle_sponsor('s2', sponsor_2_select, sponsor_button_2)
-            
+            sponsor_button_1.clicked.connect(save_sponsor_contract_1)
+            sponsor_button_2.clicked.connect(save_sponsor_contract_2)
             
             money_label = QLabel(iGPeasyHelp.abbreviate_number(int(account.team['_balance'])))
             token_label = QLabel(account.manager['tokens'])
@@ -882,10 +928,12 @@ class iGPeasyWindow(QMainWindow):
                         #update the button only for the car requested   
                         account.setup_pyqt_elements[driver_index]['parts'][1].setText("100%")
                         account.setup_pyqt_elements[driver_index]['parts'][1].setDisabled(True)
-                def repair_engine():
+                @asyncSlot()
+                async def repair_engine(self):
                     print('attempt to repair engine of',account.nickname,driver_index)
-                    loop = asyncio.get_event_loop()
-                    response = loop.run_until_complete(account.request_engine_repair(account.car[driver_index]))
+                    response = await account.request_engine_repair(account.car[driver_index])
+                    #loop = asyncio.get_event_loop()
+                    #response = loop.run_until_complete(account.request_engine_repair(account.car[driver_index]))
                     if response == False:
                         print('already repaired or out of engines')
                     else:
@@ -1180,16 +1228,18 @@ class iGPeasyWindow(QMainWindow):
 
             save_button = QPushButton('Save')
             save_button.setMinimumHeight(120)
-            def on_save_strategy(self):
+            
+            @asyncSlot()
+            async def on_save_strategy(self):
                 if account.has_league:
                     save_json_offsets()
                     for driver_index in range(len(account.strategy)):
                         account.strategy[driver_index]['ride'] = str(int(account.strategy[driver_index]['ride']) + int(account.setup_pyqt_elements[driver_index]['setup']['ride_offset'].text()))
                         account.strategy[driver_index]['aero'] = str(int(account.strategy[driver_index]['aero']) + int(account.setup_pyqt_elements[driver_index]['setup']['wing_offset'].text()))
                         
-                            
-                    loop = asyncio.get_event_loop()
-                    loop.run_until_complete(account.save_strategy())
+                    await account.save_strategy()        
+                    #loop = asyncio.get_event_loop()
+                    #loop.run_until_complete(account.save_strategy())
             save_button.clicked.connect(on_save_strategy)
 
 

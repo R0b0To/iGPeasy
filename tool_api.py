@@ -83,6 +83,7 @@ class iGP_account:
                     soup = BeautifulSoup(json_data['message'], 'html.parser')
                     #xp gain is '<span>5</span><img src="https://igpmanager.com/app/design/dr-xp.png" class="drSubImage" />'
                     #money '<span>$16k</span><img src="https://igpmanager.com/app/design/dr-cash.png" class="drSubImage" />'
+                    #'<span>1</span><img src="https://igpmanager.com/app/design/dr-part.png" class="drSubImage" />'
                     return soup.find('span').get_text()
     def save_setup_field(self,pyqt_elements):
         self.setups = pyqt_elements
@@ -221,7 +222,7 @@ class iGP_account:
         sign_sponsor = f"https://igpmanager.com/index.php?action=send&type=contract&enact=sign&eType=5&eId={id}&location={number}&jsReply=contract&csrfName=&csrfToken="
         
         json_data = await self.fetch_url(sign_sponsor)
-
+        print(json_data)
 
     async def staff_info(self): 
          
