@@ -50,9 +50,8 @@ class iGPeasy:
                 print('No valid accounts | add more')
                 await self.gui.add_accounts_to_start()
             else:
-                print('OK, populate window')
                 await self.gui.init_window()
-                print('Window initialized.')
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

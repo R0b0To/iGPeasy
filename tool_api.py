@@ -190,7 +190,6 @@ class iGP_account:
         async with self.session.get('https://igpmanager.com/index.php?action=fetch&p=finances&csrfName=&csrfToken=') as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())['vars']
-                    contract = 0
                     empty_sponsor = {'income':'0','bonus':'0','expire':'0','status':False}
                     sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
                     #primary
@@ -202,7 +201,6 @@ class iGP_account:
                         sponsors['s1']['bonus'] = contract_soup[3].text
                         sponsors['s1']['expire'] = contract_soup[5].text
                         sponsors['s1']['status'] = True
-                        contract+=1
                     #secondary
                     if json_data['s2Name'] == '':
                         print('secondary sponsor expired')
@@ -212,17 +210,13 @@ class iGP_account:
                         sponsors['s2']['bonus'] = contract_soup[3].text
                         sponsors['s2']['expire'] = contract_soup[5].text
                         sponsors['s2']['status'] = True
-                        contract+=1 
 
                     self.sponsors = sponsors        
-                    print(self.sponsors,self.nickname)
 
-                    return f"{contract}/2"
+
     async def save_sponsor(self,number,id):
         sign_sponsor = f"https://igpmanager.com/index.php?action=send&type=contract&enact=sign&eType=5&eId={id}&location={number}&jsReply=contract&csrfName=&csrfToken="
-        
         json_data = await self.fetch_url(sign_sponsor)
-        print(json_data)
 
     async def staff_info(self): 
          
@@ -446,8 +440,6 @@ class iGP_account:
         good_format =  str(strat_data).replace("'", "\"")
         good_format =good_format.replace('""',"\"")
 
-
-        print('saving...')
         #response =  self.session.post(url, data=good_format)
         async with self.session.post(url, data=good_format) as response:
                 if response.status == 200:
@@ -465,6 +457,7 @@ class iGP_account:
         else:
             return 'err'
     async def request_engine_repair(self,car):
+        
         if car['engine'] == "100%" or self.car[0]['total_parts'] == 0:
             return False
         

@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 from PyQt6.QtWidgets import QMainWindow,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
-from PyQt6.QtGui import QPixmap, QIcon,QPalette,QIntValidator,QFont
+from PyQt6.QtGui import QPixmap, QIcon,QPalette,QIntValidator,QAction
 from PyQt6.QtCore import Qt,QSize
 import math
 from helpers import iGPeasyHelp, Section, CustomComboBox,Track
@@ -126,15 +126,247 @@ class AccountPopup(QDialog):
         self.setLayout(self.manage_accounts_initialized['main_layout'])
         self.show()
     
+class ResearchPopup(QDialog):    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        print(self.parent)
+        self.setWindowTitle("Car Research")
+        self.initialized = False
+        self.my_car = []
+        self.best_car = []
+        self.gap = []
+        self.check_status = []
+        self.checkboxes = []
+        self.gain = []
+        self.init_research()
     
+    @asyncSlot()
+    async def on_save_research(self):
+        print('saving research car')
+        attribute_keys = ['acceleration', 'braking', 'cooling', 'downforce', 'fuel_economy', 'handling', 'reliability', 'tyre_economy']
+        attributes_to_save = ['&c%5B%5D=' + value for value, flag in zip(attribute_keys, self.check_status) if flag]
+        spinbox_values = [spinbox.value() for spinbox in self.my_car]
+        points_spent = ['&{}={}'.format(key, value) for key, value in zip(attribute_keys, spinbox_values)]
+        attributes_to_save_string = ''.join(attributes_to_save)
+        points_spent_to_save_string = ''.join(points_spent)
+       
+        await self.account.save_research(attributes_to_save_string,points_spent_to_save_string)
+        self.accept()
+    
+    def on_header_check_change(self, state):
+        is_checked = (state == Qt.CheckState.Checked)
+    
+        for check in self.checkboxes:
+            check.blockSignals(True)
+            check.setChecked(is_checked)
+            check.blockSignals(False)
+        self.check_status = [is_checked] * len(self.check_status)
+        self.set_research_power()       
+    
+    def set_research_power(self):
+        selected = (self.check_status.count(True))
+        if selected == 0:
+           self.power.setText(str(0)) 
+        else:
+           self.power.setText(str(self.max_power / selected ))
+        for i,check in enumerate(self.checkboxes):
+            if check.checkState() == Qt.CheckState.Checked:
+                check.setText(str(math.ceil(max(0, int(self.gap[i].text()))*float(self.power.text())/100)))
+            else:  check.setText('')
+        
+
+    
+    def on_check_change(self,state):
+        attribute_check = self.sender()
+        print(attribute_check.property('index'))
+        is_checked = (state == Qt.CheckState.Checked)
+        index = attribute_check.property('index')
+        self.check_status[index] = is_checked
+        self.set_research_power()
+        #needs to check all again 
+
+    
+    def on_points_change(self,new_value):
+        
+        attribute = self.sender()
+        old_value = attribute.property('old_value')
+        
+        if new_value > old_value:
+            #revert last increment in case out of available points 
+            if self.available_points -1 < 0:
+                attribute.blockSignals(True)
+                attribute.setValue(attribute.value() - 1)
+                new_value -= 1
+                attribute.blockSignals(False) 
+                self.available_points+=1
+            #decrease the available points as increasing the attribute means points were used    
+            self.available_points -= 1
+        elif new_value < old_value:
+            self.available_points += 1 
+
+        self.points.setText(str(self.available_points))
+        attribute.setProperty('old_value',new_value)   
+
+
+    def init_research(self):
+        print(self)
+        if self.initialized == False:
+            layout = QVBoxLayout()
+            header_research = QWidget()
+
+            header_research_layout = QHBoxLayout()
+            header_research_layout.addStretch()
+
+            my_points = QWidget()
+            my_points_layout = QHBoxLayout()
+            my_points_layout.addWidget(QLabel('Points'))
+            self.points = QLabel()
+            my_points_layout.addWidget(self.points)
+            my_points.setLayout(my_points_layout)
+            header_research_layout.addWidget(my_points)
+            header_research_layout.addWidget(QLabel('Research Power'))
+            self.power = QLabel()
+
+            header_research_layout.addWidget(self.power)
+            points_gain = QLabel()
+            header_research_layout.addWidget(points_gain)
+            header_research.setLayout(header_research_layout)
+
+            save_button = QPushButton('Save')
+            save_button.clicked.connect(self.on_save_research)
+            layout.addWidget(header_research)
+
+
+            header_titles = QWidget()
+            header_area = QLabel('Area')
+            header_mycar = QLabel('My Car')
+            header_best_car = QLabel('Best')
+            header_gap = QLabel('Gap')
+            header_check = QCheckBox()
+            header_check.checkStateChanged.connect(self.on_header_check_change)
+               
+            for item in [header_area,header_mycar,header_best_car,header_gap]:
+                    item.setFixedWidth(90)
+                    item.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            header_titles_layout = QHBoxLayout()
+            header_titles_layout.addWidget(header_area)
+            header_titles_layout.addWidget(header_mycar)
+            header_titles_layout.addWidget(header_best_car)
+            header_titles_layout.addWidget(header_gap)
+            header_titles_layout.addWidget(header_check)
+            header_titles.setLayout(header_titles_layout)
+
+            layout.addWidget(header_titles)
+
+            def area_widget(name):
+                container = QWidget()
+                layout_container = QHBoxLayout()
+                area = QLabel(name)
+                spinbox = QSpinBox()
+                #spinbox.setReadOnly(True)
+                spinbox.lineEdit().setReadOnly(True)
+                spinbox.valueChanged.connect(self.on_points_change)
+                best_car = QLabel()
+                gap = QLabel()
+                check = QCheckBox()
+                check.checkStateChanged.connect(self.on_check_change)
+                check.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+                for item in [area,spinbox,best_car,gap]:
+                    item.setFixedWidth(90)
+                    item.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+                layout_container.addWidget(area)
+                layout_container.addWidget(spinbox)
+                layout_container.addWidget(best_car)
+                layout_container.addWidget(gap)
+                layout_container.addWidget(check)
+                
+                spinbox.setStyleSheet("""
+                 QSpinBox {text-align: center; }
+                 QSpinBox::up-button {
+                    min-width: 20px;
+                    min-height: 50px;
+                    subcontrol-origin: margin;
+                    subcontrol-position: right;  
+                }
+                QSpinBox::down-button {
+                    min-width: 20px;
+                    min-height: 50px;
+                    subcontrol-origin: margin;
+                    subcontrol-position: left;
+                }
+                """)    
+                container.setLayout(layout_container)
+                
+                self.my_car.append(spinbox)
+                self.best_car.append(best_car)
+                self.gap.append(gap)
+                check.setProperty('index',len(self.checkboxes))
+                self.checkboxes.append(check)
+                
+                return container
+            for i, key in enumerate(['acceleration', 'braking', 'cooling', 'downforce', 'fuel economy', 'handling', 'reliability', 'tyre economy']):
+                layout.addWidget(area_widget(key))
+            layout.addWidget(save_button)
+            self.initialized = layout
+        self.setLayout(self.initialized)
+        
+
+    
+    async def load_data(self,sender):
+        print('sender is ',sender)
+        if isinstance(sender, QPushButton):  # Check that the sender is the expected type
+            self.account = sender.property('account')
+            print("Account property:", self.account)
+            research_data = await self.account.research_info()
+        
+        self.max_power = research_data['research_power']
+        check_count = research_data['check'].count(True)
+        self.power.setText(str(self.max_power /check_count))
+        self.available_points = int(research_data['points'])
+        
+        self.points.setText(str(self.available_points))
+        gaps = []
+        #rookie 1 must do /2
+        #pro 2 is normal
+        #elite 3 must do x2
+        tier_research_map = {'1':0.5, '2':1, '3':2}
+        tier = self.account.team['_tier']
+        self.check_status = research_data['check']
+
+        for i in range(8):
+            my_attribute = research_data['car_design'][i] #car design is retrieved directly
+            best_car_attribute = research_data['teams_design'][i] * tier_research_map[tier] #convertion of comparison table
+            gaps.append(int(best_car_attribute) - int(my_attribute))
+            self.my_car[i].blockSignals(True)
+            self.my_car[i].setMaximum(int(research_data['max']))
+            self.my_car[i].setMinimum(int(my_attribute))
+            self.my_car[i].setValue(int(my_attribute))
+            self.my_car[i].setProperty('old_value',int(my_attribute))
+            self.my_car[i].blockSignals(False)
+            self.best_car[i].setText(str(best_car_attribute ))
+            self.gap[i].setText(str(gaps[i]))
+            self.checkboxes[i].blockSignals(True)
+            self.checkboxes[i].setChecked(research_data['check'][i])
+            if self.check_status[i] == True:
+                self.checkboxes[i].setText(str(math.ceil(max(0, int(gaps[i]))*float(self.power.text())/100)))
+            else: self.checkboxes[i].setText("")
+            self.checkboxes[i].blockSignals(False)
+                
+
+        self.show()
+    
+
 class PopupDialog(QDialog):
     def __init__(self,layout):
         super().__init__()
-        self.setWindowTitle("Popup Window")
+        self.setWindowTitle("Load Strategy")
         #self.setGeometry(100, 100, 300, 200)
         self.setLayout(layout)
 
-class PopupHandler(QDialog):
+class StrategyPopup(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.strategy_popup_initialized = False
@@ -691,9 +923,6 @@ class PopupHandler(QDialog):
        
 
 
-
-
-
 class iGPeasyWindow(QMainWindow):
     def __init__(self,parent):
         super().__init__()
@@ -701,15 +930,40 @@ class iGPeasyWindow(QMainWindow):
  
         self.open_account_button = False
         self.iGPeasyWindow_initialized = False
-        self.main_layout =  QVBoxLayout()
-        self.accounts_container = QScrollArea()
-        self.accounts_container.setLayout(self.main_layout)
-        self.popup = PopupHandler(self) # this is the popup element, passing the mainwindow as the parent
-        self.popup_account = AccountPopup(self)
-        self.setWindowTitle("iGPeasy")
-        self.menuBar().addMenu('settings')
         
+        self.scroll_layout = QVBoxLayout()
+        self.accounts_container = QScrollArea()
+        self.main_widget = QWidget()
+        self.main_layout =  QVBoxLayout(self.main_widget)
+        
+        self.accounts_container.setWidget(self.main_widget)
+        self.accounts_container.setWidgetResizable(True)
+        
+        self.scroll_layout.addWidget(self.accounts_container)
+        
+        
+        self.setLayout(self.scroll_layout)
+        
+        
+        self.popup = StrategyPopup(self) # this is the popup element, passing the mainwindow as the parent
+        self.popup_account = AccountPopup(self)
+        self.popup_research = ResearchPopup(self)
+        self.setWindowTitle("iGPeasy")
+        accounts_menu = self.menuBar().addMenu('settings')
 
+        accounts_action = QAction("New", self)
+        accounts_action.triggered.connect(self.add_accounts_popup)
+        accounts_menu.addAction(accounts_action)
+    
+    
+    
+    
+    async def async_load_research(self,sender):
+            task = await self.popup_research.load_data(sender)
+    
+    def load_research(self):
+        sender = self.sender()
+        asyncio.create_task(self.async_load_research(sender))
 
         #self.init_window()
     def show_window(self):
@@ -721,7 +975,8 @@ class iGPeasyWindow(QMainWindow):
     async def add_accounts_popup(self):
         def clear_open_account_button():
             #it will be neccessary to remove the accounts widgets when the popup is opened from the menubar
-            self.open_account_button.setParent(None)
+            if self.open_account_button != False:
+                self.open_account_button.setParent(None)
             
         self.popup_account.manage_accounts()
         self.popup_account.finished.connect(clear_open_account_button)   
@@ -764,9 +1019,10 @@ class iGPeasyWindow(QMainWindow):
         
         
         async def account_group_box(account):
-            box = QGroupBox(f"{account.nickname} lv. {account.manager["level"]}")
-            box.setMaximumSize(QSize(1920,190))
-            box.setMinimumSize(QSize(500,190))
+            #-----------------------------------------------------------------------------mail username
+            box = QGroupBox(f"{account.nickname} - {account.username} - lv. {account.manager["level"]}",self.main_widget)
+            #box.setMaximumSize(QSize(1920,190))
+            #box.setMinimumSize(QSize(800,190))
             
             
         # --- Start of Section 1, widget with money, token, daily and sponsor---
@@ -805,16 +1061,16 @@ class iGPeasyWindow(QMainWindow):
             #sponsor_1_select.setEditable(True)
             #sponsor_2_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
             #sponsor_1_select.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
-
+            
             
             async def get_sponsor_list(number,combo):
-                task =asyncio.create_task(account.pick_sponsor(number))
-                res = await asyncio.gather(task)
+                #task = asyncio.create_task(account.pick_sponsor(number))
+                #res = await asyncio.gather(task)
+                res = await asyncio.gather(account.pick_sponsor(number))
                 income_list, bonus_list,id_list = res[0]
-                combined_text = [f"{income_list[i]} , {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
+                combined_text = [f"{income_list[i]}       {bonus_list[i]}" for i in  range(min(len(income_list), len(bonus_list)))]
                 combo.addItems(combined_text)
                 combo.setProperty('id',id_list)
-
 
                 return combo
             
@@ -825,10 +1081,13 @@ class iGPeasyWindow(QMainWindow):
                 btn.setText('10 race(s)')
                 #get list again
                 #repopulate other combo
-                sponsor_key = combo.property('location')
+                sponsor_key = btn.property('location')
                 #update the other keys?
-                account.sponsors[sponsor_key]['status'] = True
-                combo.clear()
+                income, bonus = combo.itemText(combo.currentIndex()).split(',')
+                account.sponsors[f"s{sponsor_key}"]['income'] = income
+                account.sponsors[f"s{sponsor_key}"]['bonus'] = bonus
+                account.sponsors[f"s{sponsor_key}"]['status'] = True
+                
                 await handle_sponsor(combo,btn)
 
 
@@ -837,7 +1096,7 @@ class iGPeasyWindow(QMainWindow):
                     combo = sponsor_1_select
                     id  = combo.currentIndex()
                     res = await account.save_sponsor(1,combo.property('id')[id])
-                    handle_sponsor_req(combo,sponsor_button_1)
+                    await handle_sponsor_req(combo,sponsor_button_1)
                     #update the new sposnsors / refresh the other
                     #loop = asyncio.get_event_loop()
                     #loop.run_until_complete(self.account.get_sponsors())
@@ -846,15 +1105,15 @@ class iGPeasyWindow(QMainWindow):
                     combo = sponsor_2_select
                     id  = combo.currentIndex()
                     res = await account.save_sponsor(2,combo.property('id')[id])
-                    handle_sponsor_req(combo,sponsor_button_2)
+                    await handle_sponsor_req(combo,sponsor_button_2)
 
                     #update the new sposnsors / refresh the other
                     #loop = asyncio.get_event_loop()
                     #loop.run_until_complete(self.account.get_sponsors())
             async def handle_sponsor(sponsor_select, sponsor_button):
-                sponsor_key = sponsor_select.property('location')
-                sponsor = account.sponsors[sponsor_key]
-
+                sponsor_key = sponsor_button.property('location')
+                sponsor = account.sponsors[f"s{sponsor_key}"]
+                sponsor_select.clear()
                 if not sponsor['status']:
                     await get_sponsor_list(int(sponsor_key), sponsor_select)
                     sponsor_button.setText('Press to Confirm')
@@ -864,8 +1123,8 @@ class iGPeasyWindow(QMainWindow):
                     sponsor_button.setDisabled(True)
                     sponsor_select.setDisabled(True)
 
-            await handle_sponsor('s1', sponsor_1_select, sponsor_button_1)
-            await handle_sponsor('s2', sponsor_2_select, sponsor_button_2)
+            await handle_sponsor(sponsor_1_select, sponsor_button_1)
+            await handle_sponsor(sponsor_2_select, sponsor_button_2)
             sponsor_button_1.clicked.connect(save_sponsor_contract_1)
             sponsor_button_2.clicked.connect(save_sponsor_contract_2)
             
@@ -903,6 +1162,8 @@ class iGPeasyWindow(QMainWindow):
                     race_time_label = QLabel(account.strategy[0]['raceTime'])
                     race_weather_label = QLabel(account.strategy[0]['pWeather'])
                     car_design_button =QPushButton('car/research')
+                    car_design_button.setProperty('account',account) #----------------------------------------------------------------------
+                    car_design_button.clicked.connect(self.load_research)
                     race_info_grid_layout.addWidget(race_name_label,0,0,1,1)
                     race_info_grid_layout.addWidget(race_time_label,1,0,1,1)
                     race_info_grid_layout.addWidget(race_weather_label,2,0,1,1)
@@ -914,10 +1175,10 @@ class iGPeasyWindow(QMainWindow):
             car_design_button = None
 
             def driver_setup(driver_index):
-                def repair_parts():
+                @asyncSlot()
+                async def repair_parts(self):
                     print('attempt to repair parts of',account.nickname,driver_index)
-                    loop = asyncio.get_event_loop()
-                    response = loop.run_until_complete(account.request_parts_repair(account.car[driver_index]))
+                    response = await account.request_parts_repair(account.car[driver_index])
                     if response == False:
                         print('already repaired or out of engines')
                     else:
@@ -931,19 +1192,21 @@ class iGPeasyWindow(QMainWindow):
                 @asyncSlot()
                 async def repair_engine(self):
                     print('attempt to repair engine of',account.nickname,driver_index)
-                    response = await account.request_engine_repair(account.car[driver_index])
-                    #loop = asyncio.get_event_loop()
-                    #response = loop.run_until_complete(account.request_engine_repair(account.car[driver_index]))
-                    if response == False:
-                        print('already repaired or out of engines')
-                    else:
-                        account.car[0]['total_engines'] = response
-                        for car in account.setup_pyqt_elements:
-                            car['engine'][0].setText(str(response))
+                    if int(account.car[0]['total_engines']) > 0:
+                        response = await account.request_engine_repair(account.car[driver_index])
+                        #loop = asyncio.get_event_loop()
+                        #response = loop.run_until_complete(account.request_engine_repair(account.car[driver_index]))
+                        if response == False:
+                            print('already repaired')
+                        else:
+                            account.car[0]['total_engines'] = response
+                            for car in account.setup_pyqt_elements:
+                                car['engine'][0].setText(str(response))
 
-                        account.setup_pyqt_elements[driver_index]['engine'][1].setText("100%")
-                        account.setup_pyqt_elements[driver_index]['engine'][1].setDisabled(True)
-                    
+                            account.setup_pyqt_elements[driver_index]['engine'][1].setText("100%")
+                            account.setup_pyqt_elements[driver_index]['engine'][1].setDisabled(True)
+                    else:
+                        print('out of engines')
                     
                 strategy_widget = QWidget()
                 strategy_widget_layout = QHBoxLayout()
@@ -971,6 +1234,7 @@ class iGPeasyWindow(QMainWindow):
                 car_condition_layout.addWidget(parts_button,1,2,1,1)
                 car_condition_layout.addWidget(engine_button,2,2,1,1)
                 car_condition_widget.setLayout(car_condition_layout)
+                car_condition_widget.setFixedWidth(150)
                 # --- End of Section 3 --- 
                 
                 # --- Start of Section 4 ---
@@ -1036,8 +1300,7 @@ class iGPeasyWindow(QMainWindow):
                                                             'preview':0,
                                                             }}
                 
-                if account.has_league:
-                     
+                if account.has_league:   
                 # --- Start of Section 5 ---
                     strategy_setup_container = QWidget()
                     strategy_setup_container_layout = QHBoxLayout()
@@ -1168,6 +1431,7 @@ class iGPeasyWindow(QMainWindow):
                     
                     strategy_container = QWidget()
                     strategy_container_layout = QGridLayout()
+                    strategy_container.setMinimumWidth(220)
 
                     preview_strat = display_strat(strategy_container_layout,str(account.strategy[0]['raceLaps']))
                     preview_strat.generate_preview(account.strategy[driver_index])
@@ -1205,7 +1469,7 @@ class iGPeasyWindow(QMainWindow):
                 
                 # --- End of Section 5 ---
                 
-                
+                strategy_widget_layout.addStretch()
                 strategy_widget.setLayout(strategy_widget_layout)
                 palette = self.palette()
                 background_color = palette.color(QPalette.ColorRole.Window)
@@ -1214,6 +1478,7 @@ class iGPeasyWindow(QMainWindow):
                 strategy_widget.setAutoFillBackground(True)
                 widget_palette.setColor(QPalette.ColorRole.Window, darkened_color)
                 strategy_widget.setPalette(widget_palette)
+                
                 #strategy_widget.setStyleSheet("background-color: lightblue;")
                 
                 setup_pyqt_elements['parts'] = [parts_text,parts_button]
@@ -1259,10 +1524,15 @@ class iGPeasyWindow(QMainWindow):
             for strategy in strategy_widget:
                 box_layout.addWidget(strategy)
             
-            box_layout.addStretch()
-            
+            box_layout.addStretch(1)
+
+            #box.setFixedHeight(400)
+
             box.setLayout(box_layout)
+            
             self.main_layout.addWidget(box)
+            
+            
             
             account.pyqt_elements = {'money':money_label,
                                      'tokens':token_label,
@@ -1280,7 +1550,8 @@ class iGPeasyWindow(QMainWindow):
 
             # Await all tasks to complete
         await asyncio.gather(*tasks)
-        self.main_layout.addStretch()
+        self.main_layout.addStretch(1)
+        #self.main_layout.addStretch()
         
         self.show_window()
         #print(self.main_layout.sizeHint())
