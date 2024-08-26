@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 from PyQt6.QtWidgets import QMainWindow,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
-from PyQt6.QtGui import QPixmap, QIcon,QPalette,QIntValidator,QAction
+from PyQt6.QtGui import QPixmap, QIcon,QPalette,QIntValidator,QAction,QFont
 from PyQt6.QtCore import Qt,QSize
 import math
 from helpers import iGPeasyHelp, Section, CustomComboBox,Track
@@ -392,9 +392,11 @@ class StrategyPopup(QDialog):
         self.account.strategy[self.driver_index]['strat'][:len(strategy_to_load['strat'])] = strategy_to_load['strat']
         self.strategy_popup()   
     
+    
     def strategy_popup(self):
+
         self.saved_strategies = None
-        self.center_of_parent()
+        #self.center_of_parent()
         if self.saved_strategies == None:
             with open('save.json', 'r') as json_file:
                 self.saved_strategies = json.load(json_file)['save']
@@ -402,7 +404,7 @@ class StrategyPopup(QDialog):
         self.preview_slot = self.sender().property('preview')
         self.account = self.sender().property('account')
         self.driver_index = self.sender().property('driver_index')
-       
+        print('open popup',self.preview_slot)
         self.race_mode = 'rf' if self.account.strategy[0]['rules']['refuelling'] == '1' else 'nrf'
         race_rule = 'tyre rules is off' if self.account.strategy[0]['rules']['two_tyres'] == '0' else 'tyre rule is on'
         self.track= Track(self.account.strategy[0]['trackCode'])
@@ -420,8 +422,6 @@ class StrategyPopup(QDialog):
            if self.race_mode == 'nrf':
                 self.advanced_suggested_fuel.setText(f"{round(total*self.fuel_lap,2)}") 
         
-        
-                    
         self.setStyleSheet("""
              QSpinBox {
               
@@ -503,9 +503,7 @@ class StrategyPopup(QDialog):
                     inner_layout.addWidget(label,0,column,Qt.AlignmentFlag.AlignCenter)
                     column += 1
                 return inner_layout
-            
-            
-          
+    
 
         if self.strategy_popup_initialized == False:
             main_layout =  QVBoxLayout()
@@ -816,10 +814,15 @@ class StrategyPopup(QDialog):
                 update_total()
             def on_save_button():
                 print('saving',self.account.nickname,self.driver_index)
-                self.preview_slot.update_preview(self.account.strategy[self.driver_index ])
+                print('saving at',self.preview_slot)
+                self.preview_slot.clear_preview()
+                self.preview_slot.generate_preview(self.account.strategy[self.driver_index])
                 #preview_slot.(QLabel('test'))
-      
+            def on_close():
+                self.preview_slot.clear_preview()
+                self.preview_slot.generate_preview(self.account.strategy[self.driver_index])
             
+            self.finished.connect(on_close)
             self.save_button.clicked.connect(on_save_button)
             self.load_button.clicked.connect(on_load_button)
             self.advanced_fuel_nrf.valueChanged.connect(on_advanced_fuel_change)
@@ -948,6 +951,7 @@ class iGPeasyWindow(QMainWindow):
         self.popup = StrategyPopup(self) # this is the popup element, passing the mainwindow as the parent
         self.popup_account = AccountPopup(self)
         self.popup_research = ResearchPopup(self)
+        
         self.setWindowTitle("iGPeasy")
         accounts_menu = self.menuBar().addMenu('settings')
 
@@ -967,16 +971,33 @@ class iGPeasyWindow(QMainWindow):
 
         #self.init_window()
     def show_window(self):
-        self.setGeometry(100, 100, 1700, 1700)
+        #self.setGeometry(100, 100, 1700, 1700)
         self.setCentralWidget(self.accounts_container)
-        self.showMaximized()
+        if not self.isVisible():
+            self.showMaximized()
         
     @asyncSlot()
     async def add_accounts_popup(self):
+        def clearLayout(layout):
+            print("-- -- input layout: "+str(layout))
+            for i in reversed(range(layout.count())):
+                layoutItem = layout.itemAt(i)
+                if layoutItem.widget() is not None:
+                    widgetToRemove = layoutItem.widget()
+                    print("found widget: " + str(widgetToRemove))
+                    widgetToRemove.setParent(None)
+                    layout.removeWidget(widgetToRemove)
+                elif layoutItem.spacerItem() is not None:
+                    print("found spacer: " + str(layoutItem.spacerItem()))
+                 
+
+            #self.main_widget.setLayout(self.main_layout)
         def clear_open_account_button():
             #it will be neccessary to remove the accounts widgets when the popup is opened from the menubar
             if self.open_account_button != False:
                 self.open_account_button.setParent(None)
+                return
+            clearLayout(self.main_layout)
             
         self.popup_account.manage_accounts()
         self.popup_account.finished.connect(clear_open_account_button)   
@@ -1380,15 +1401,16 @@ class iGPeasyWindow(QMainWindow):
                                   'suspension':suspension_selection,
                                   'ideal':ideal_button}
                     setup_pyqt_elements['setup'] = setup_pyqt
-                    class display_strat():
-                        def __init__(self,strategy_container,race_laps):
-                              self.parent = strategy_container 
+                    
+                    class display_strat(QVBoxLayout):
+                        def __init__(self,race_laps,parent=None):
+                              super().__init__(parent)
                               self.race_laps = race_laps
+                            
 
-
-                        def update_preview(self,full_strategy):
+                        def clear_preview(self):
                         
-                            old_layout = self.container.layout()
+                            old_layout = self.layout()
                             for i in reversed(range(old_layout.count())): 
                                 widgetToRemove = old_layout.itemAt(i).widget()
                                 # remove it from the layout list
@@ -1397,11 +1419,11 @@ class iGPeasyWindow(QMainWindow):
                                 widgetToRemove.setParent(None)
                             self.estimate_laps.setParent(None)  
 
-                            self.generate_preview(full_strategy)
+                            #self.generate_preview(full_strategy)
 
 
                         def generate_preview(self,full_strategy):
-                            self.container = QWidget()
+                            container = QWidget()
                             strategy = full_strategy['strat']
                             pits = int(full_strategy['pits'])
                             inner_layout  = QGridLayout()
@@ -1424,29 +1446,33 @@ class iGPeasyWindow(QMainWindow):
                                 inner_layout.addWidget(label,0,column,1,1)
                                 column += 1
 
-                            self.container.setLayout(inner_layout) 
+                            container.setLayout(inner_layout)
                             self.estimate_laps = QLabel(f" Total laps estimate: {str(total_laps)}/ {self.race_laps}")
-                            self.parent.addWidget(self.estimate_laps,3,0,1,1)
-                            self.parent.addWidget(self.container,1,0,2,4)
+                            self.addWidget(container) 
+                            self.addWidget(self.estimate_laps) 
+
                     
                     strategy_container = QWidget()
                     strategy_container_layout = QGridLayout()
                     strategy_container.setMinimumWidth(220)
 
-                    preview_strat = display_strat(strategy_container_layout,str(account.strategy[0]['raceLaps']))
+                    preview_strat = display_strat(str(account.strategy[0]['raceLaps']))
                     preview_strat.generate_preview(account.strategy[driver_index])
-                    #strategy_container_layout.addWidget(preview_strat.generate_preview(self.account.strategy[driver_index]),1,0,2,4) # strategy displayed here ----------
+                    preview_strat.setProperty('info',account.username)
+                    preview_container = QWidget()
+                    print('creating preview',preview_container)
+                    preview_container.setLayout(preview_strat)
+                    #strategy_container_layout.addWidget(laps_label,3,0,1,1)
+                    strategy_container_layout.addWidget(preview_container,1,0,2,4)
 
-                    #strategy_container.setMaximumSize(QSize(180,190))
-                    #strategy_container.setMinimumSize(QSize(180,140))
+                 
                     modify_strategy_button = QPushButton('modify')
                     modify_strategy_button.setProperty('account',account)
                     modify_strategy_button.setProperty('driver_index',driver_index)
                     modify_strategy_button.setProperty('preview',preview_strat)
+
                     modify_strategy_button.clicked.connect(self.popup.strategy_popup)
-                    def close_popup():
-                        preview_strat.update_preview(account.strategy[driver_index])
-                    self.popup.finished.connect(close_popup)
+
                     strategy_preview_container = QWidget()
                     strategy_preview_container_layout = QHBoxLayout()
                     strategy_container_layout.addWidget(modify_strategy_button,0,0,1,1)
@@ -1530,8 +1556,9 @@ class iGPeasyWindow(QMainWindow):
 
             box.setLayout(box_layout)
             
-            self.main_layout.addWidget(box)
+            #inserting always before the stretch
             
+            self.main_layout.insertWidget(self.main_layout.count() -1,box)
             
             
             account.pyqt_elements = {'money':money_label,
@@ -1541,6 +1568,7 @@ class iGPeasyWindow(QMainWindow):
                                      'save':save_button}
 
         self.accounts = self.parent.valid_accounts
+        
         offsets = load_json_offsets()
         
         tasks = []
@@ -1550,13 +1578,12 @@ class iGPeasyWindow(QMainWindow):
 
             # Await all tasks to complete
         await asyncio.gather(*tasks)
+        print('adding stretch')
         self.main_layout.addStretch(1)
-        #self.main_layout.addStretch()
+        
         
         self.show_window()
-        #print(self.main_layout.sizeHint())
-        #print(self.accounts_container.sizeHint())
-        #self.resize(self.main_layout.sizeHint())
+
         
 
     
