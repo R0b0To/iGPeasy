@@ -35,8 +35,9 @@ class Track():
     
     self.multipliers = { 100: 1, 75: 1.25, 50: 1.5, 25: 3 }
     self.info = info[track_code]
+    self.length = self.info[self.race_laps]
   def get_league_length_multiplier(self):
-        return self.multipliers[self.info[self.race_laps]]
+        return self.multipliers[self.length]
   def set_tyre_wear(self,tyre):
         self.tyre = tyre
     

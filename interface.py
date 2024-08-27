@@ -129,7 +129,6 @@ class AccountPopup(QDialog):
 class ResearchPopup(QDialog):    
     def __init__(self, parent=None):
         super().__init__(parent)
-        print(self.parent)
         self.setWindowTitle("Car Research")
         self.initialized = False
         self.my_car = []
@@ -142,7 +141,6 @@ class ResearchPopup(QDialog):
     
     @asyncSlot()
     async def on_save_research(self):
-        print('saving research car')
         attribute_keys = ['acceleration', 'braking', 'cooling', 'downforce', 'fuel_economy', 'handling', 'reliability', 'tyre_economy']
         attributes_to_save = ['&c%5B%5D=' + value for value, flag in zip(attribute_keys, self.check_status) if flag]
         spinbox_values = [spinbox.value() for spinbox in self.my_car]
@@ -178,7 +176,6 @@ class ResearchPopup(QDialog):
     
     def on_check_change(self,state):
         attribute_check = self.sender()
-        print(attribute_check.property('index'))
         is_checked = (state == Qt.CheckState.Checked)
         index = attribute_check.property('index')
         self.check_status[index] = is_checked
@@ -209,7 +206,6 @@ class ResearchPopup(QDialog):
 
 
     def init_research(self):
-        print(self)
         if self.initialized == False:
             layout = QVBoxLayout()
             header_research = QWidget()
@@ -316,10 +312,8 @@ class ResearchPopup(QDialog):
 
     
     async def load_data(self,sender):
-        print('sender is ',sender)
         if isinstance(sender, QPushButton):  # Check that the sender is the expected type
             self.account = sender.property('account')
-            print("Account property:", self.account)
             research_data = await self.account.research_info()
         
         self.max_power = research_data['research_power']
@@ -391,8 +385,7 @@ class StrategyPopup(QDialog):
         #overwrite the strategy
         self.account.strategy[self.driver_index]['strat'][:len(strategy_to_load['strat'])] = strategy_to_load['strat']
         self.strategy_popup()   
-    
-    
+
     def strategy_popup(self):
 
         self.saved_strategies = None
@@ -413,8 +406,7 @@ class StrategyPopup(QDialog):
         self.track.set_tyre_wear(iGPeasyHelp.wear_calc(self.account.car[0]['tyre_economy'],self.track))
         
         self.account.pyqt_elements['track'] = self.track
-        
-        print(self.track.tyre)
+
 
         def set_text_total_laps_label(text):
             self.strat_widget_total_laps.setText(f"{text}/{self.account.strategy[0]['raceLaps']}")
@@ -845,10 +837,36 @@ class StrategyPopup(QDialog):
                     self.fuel_lap = (self.fuel_km  * self.track.info['length'])
                 update_total()
             def on_save_button():
-                print('saving',self.account.nickname,self.driver_index)
-                print('saving at',self.preview_slot)
                 self.preview_slot.clear_preview()
                 self.preview_slot.generate_preview(self.account.strategy[self.driver_index])
+                def hash_code(string):
+                    hash_value = 0
+                    for char in string:
+                        code = ord(char)
+                        hash_value = ((hash_value << 5) - hash_value) + code
+                        hash_value = hash_value & 0xffffffff  # Convert to 32-bit integer
+                    return hash_value
+                
+                save = {'stints':{},
+                "length": str(self.track.length) ,
+                "track": str(self.account.strategy[0]['trackCode']),
+                "laps": {
+                    "total": int(self.account.strategy[0]['raceLaps']),
+                    "doing": sum(int(laps[1]) for laps in self.account.strategy[self.driver_index]['strat'][:int(self.account.strategy[self.driver_index]['pits'])+1])
+                }}            
+                stints = {i: {"tyre": f"ts-{sublist[0]}", "laps": str(sublist[1]), "push": 3} for i, sublist in enumerate(self.account.strategy[self.driver_index]['strat'][:int(self.account.strategy[self.driver_index]['pits'])+1])}   
+                save['stints'] = stints
+                save_id = hash_code(str(save))
+                
+                with open('save.json', 'r') as json_file:
+                    save_list = json.load(json_file)
+        
+                save_list['save'][self.account.strategy[0]['trackCode']][save_id] = save   
+        
+                with open('save.json', 'w') as f:
+                    json.dump(save_list, f)
+
+
                 #preview_slot.(QLabel('test'))
             def on_close():
                 self.preview_slot.clear_preview()
@@ -986,11 +1004,16 @@ class iGPeasyWindow(QMainWindow):
         self.popup_research = ResearchPopup(self)
         
         self.setWindowTitle("iGPeasy")
-        accounts_menu = self.menuBar().addMenu('settings')
+        accounts_menu = self.menuBar().addMenu('Settings')
+        actions_menu = self.menuBar().addMenu('Actions')
 
-        accounts_action = QAction("New", self)
+        accounts_action = QAction("Manage Accounts", self)
         accounts_action.triggered.connect(self.add_accounts_popup)
         accounts_menu.addAction(accounts_action)
+
+        daily_action = QAction("Daily all", self)
+        daily_action.triggered.connect(self.get_daily_all)
+        actions_menu.addAction(daily_action)
     
     
     
@@ -1008,20 +1031,35 @@ class iGPeasyWindow(QMainWindow):
         self.setCentralWidget(self.accounts_container)
         if not self.isVisible():
             self.showMaximized()
-        
+
+
+    
+    @asyncSlot()
+    async def get_daily_all(self):
+        tasks = [] 
+        for account in self.accounts:
+            if 'page' in account.notify and 'nDailyReward' in account.notify['page']:
+                tasks.append(self.process_account(account))
+            else:
+                print('reward disabled')
+        if tasks:
+            await asyncio.gather(*tasks)
+    async def process_account(self, account):
+        res = await account.get_daily()
+        account.pyqt_elements['daily'].setDisabled(True) 
     @asyncSlot()
     async def add_accounts_popup(self):
         def clearLayout(layout):
-            print("-- -- input layout: "+str(layout))
+            #print("-- -- input layout: "+str(layout))
             for i in reversed(range(layout.count())):
                 layoutItem = layout.itemAt(i)
                 if layoutItem.widget() is not None:
                     widgetToRemove = layoutItem.widget()
-                    print("found widget: " + str(widgetToRemove))
+                    #print("found widget: " + str(widgetToRemove))
                     widgetToRemove.setParent(None)
                     layout.removeWidget(widgetToRemove)
-                elif layoutItem.spacerItem() is not None:
-                    print("found spacer: " + str(layoutItem.spacerItem()))
+                #elif layoutItem.spacerItem() is not None:
+                    #print("found spacer: " + str(layoutItem.spacerItem()))
                  
 
             #self.main_widget.setLayout(self.main_layout)
