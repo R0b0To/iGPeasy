@@ -411,14 +411,21 @@ class StrategyPopup(QDialog):
         self.fuel_km = iGPeasyHelp.fuel_calc(self.account.car[0]['fuel_economy']) 
         self.fuel_lap = int(self.fuel_km * self.track.info['length'] * 100)/100
 
+        def set_text_total_laps_label(text):
+            self.strat_widget_total_laps.setText(f"{text}/{self.account.strategy[0]['raceLaps']}")
+        
         def update_total():
+           """recalculate the laps based on the fuel/push and set the total laps for nrf"""
            total = 0
-
+            
            for stint in self.strat_stints:
                 stint.set_account_and_driver(self.account,self.driver_index,self.fuel_lap)
                 stint.on_fuel_change(stint.stint_fuel_label.value())
                 total+= stint.get_laps()
+           
+
            self.strat_widget_total_laps.setText(f"{total}/{self.account.strategy[0]['raceLaps']}")
+           
            if self.race_mode == 'nrf':
                 self.advanced_suggested_fuel.setText(f"{round(total*self.fuel_lap,2)}") 
         
@@ -645,7 +652,8 @@ class StrategyPopup(QDialog):
                     self.stint_fuel_label.valueChanged.connect(self.on_fuel_change)
                     self.stint_laps_label_nrf.valueChanged.connect(self.on_laps_change)
                     self.stint_tyre_selection.currentIndexChanged.connect(self.on_tyre_change)
-                
+                def set_total_label_text(label):
+                    self.strat_widget_total_laps = label
                 def set_account_and_driver(self,account,driver_index,fuel):
                     self.driver_index = driver_index
                     self.account = account
@@ -701,13 +709,16 @@ class StrategyPopup(QDialog):
                     selected_tyre_index = self.stint_tyre_selection.currentIndex()
                     self.account.strategy[self.driver_index ]['strat'][self.index][0] = iGPeasyHelp().tyre_map_rev[selected_tyre_index] 
                 def on_fuel_change(self,fuel):
-                    #print('changin fuel of',self.account.nickname,self.driver_index)
                     if self.mode == 'rf':
                         lap = int(int(fuel)/self.fuel_lap*100)/100
                         self.account.strategy[self.driver_index ]['strat'][self.index][2] = str(fuel)
                         self.stint_laps_label.setText(str(lap))
                         self.account.strategy[self.driver_index ]['strat'][self.index][1] = str(math.floor(lap))
-                    
+                        
+                        #using the strat list to do the total sum and the pit to slice it
+                        total = sum(int(laps[1]) for laps in self.account.strategy[self.driver_index]['strat'][:int(self.account.strategy[self.driver_index]['pits'])+1])
+                        set_text_total_laps_label(str(total))
+
 
                 def on_laps_change(self,lap):
                     self.account.strategy[self.driver_index]['strat'][self.index][1] = str(lap)
