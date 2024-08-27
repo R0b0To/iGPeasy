@@ -3,9 +3,10 @@ import math
 from PyQt6.QtCore import Qt, QParallelAnimationGroup, QPropertyAnimation, QAbstractAnimation, QSize, Qt
 from PyQt6.QtWidgets import QWidget, QToolButton, QFrame, QScrollArea, QGridLayout, QSizePolicy,QComboBox, QStyledItemDelegate,QStylePainter,QWidget
 class Track():
-  def __init__(self,track_code):
+  def __init__(self,track_code,race_laps):
     #last numbers are race laps for each tier  
     self.track_code = track_code
+    self.race_laps = race_laps
     info = {
                     'au': { 'length': 5.3017135, 'wear': 40, 'avg':226.1090047, '14':25,'28':50,'42':75,'57':100 },
                     'my': { 'length': 5.5358276, 'wear': 80, 'avg':208.879, '13':25,'27':50,'41':75,'55':100 },
@@ -34,7 +35,10 @@ class Track():
     
     self.multipliers = { 100: 1, 75: 1.25, 50: 1.5, 25: 3 }
     self.info = info[track_code]
-
+  def get_league_length_multiplier(self):
+        return self.multipliers[self.info[self.race_laps]]
+  def set_tyre_wear(self,tyre):
+        self.tyre = tyre
     
 class iGPeasyHelp():
     def __init__(self, parent=None):
@@ -43,6 +47,8 @@ class iGPeasyHelp():
         self.push_map = {'100':0,'80':1,'60':2,'40':3,'20':4}
         self.push_map_rev = {0:'100',1:'80',2:'60',3:'40',4:'20'}
         self.added_push = {0:0.02,1:0.0081,2:0,3:-0.004,4:-0.007}
+        
+        
     def abbreviate_number(n):
         """Convert a large number into a more readable string with a suffix."""
         suffixes = ['', 'K', 'M', 'B', 'T', 'P', 'E', 'Z', 'Y']
@@ -53,6 +59,35 @@ class iGPeasyHelp():
             n /= 1000.0
     
         return f'{n:.1f}{suffixes[magnitude]}'
+    
+    def wear_calc(tyre_eco,track):
+        print(track)
+        tyreWearFactors = {'SS': 2.14,'S': 1.4,'M': 1,'H': 0.78}
+        calculation = (1.43 * tyre_eco ** -0.0778) * (0.00364 * track.info['wear'] + 0.354) * track.info['length'] * 1.384612 * track.get_league_length_multiplier()
+        return {    "SS": "{:.1f}".format(calculation * tyreWearFactors['SS']),
+                    "S" : "{:.1f}".format(calculation * tyreWearFactors['S']),
+                    "M" : "{:.1f}".format(calculation * tyreWearFactors['M']),
+                    "H" : "{:.1f}".format(calculation * tyreWearFactors['H']),
+                    "I" : "{:.1f}".format(calculation * tyreWearFactors['M']),
+                    "W" : "{:.1f}".format(calculation * tyreWearFactors['M'])
+                }
+         
+    
+    #tyre laps TRACK
+    def stint_wear_calc(t,l,track):
+    
+        t = float(t)
+        l = int(l)
+
+        stint = math.exp(1) ** ((-t / 100 * 1.18) * l) * 100
+        stint2 = (1 - (1 * ((t) + (0.0212 * l - 0.00926) * track.info['length']) / 100))
+        for j in range(1, l):
+            stint2 *= (1 - (1 * ((t) + (0.0212 * j - 0.00926) * track.info['length']) / 100))
+        stint2 *= 100
+
+        average = ((stint + stint2) / 2)
+        average = round(average, 2)
+        return str(average)
     def fuel_calc(f):
         if f >= 100:
             return (f ** -0.0792) * 0.652
@@ -66,20 +101,7 @@ class iGPeasyHelp():
             return (f ** -0.0886) * 0.678
         else:
             return (f ** -0.0947) * 0.69 
-    def stint_wear_calc(t,l,trackCode):
-    
-        t = float(t)
-        l = int(l)
 
-        stint = math.exp(1) ** ((-t / 100 * 1.18) * l) * 100
-        stint2 = (1 - (1 * ((t) + (0.0212 * l - 0.00926) * Track().info[trackCode]['length']) / 100))
-        for j in range(1, l):
-            stint2 *= (1 - (1 * ((t) + (0.0212 * j - 0.00926) * Track().info[trackCode]['length']) / 100))
-        stint2 *= 100
-
-        average = ((stint + stint2) / 2)
-        average = round(average, 2)
-        return str(average)
 class Section(QWidget):
     def __init__(self, title="", animationDuration=100, parent=None):
         super().__init__(parent)

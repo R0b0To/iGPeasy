@@ -6,6 +6,7 @@ class iGP_account:
         self.session = aiohttp.ClientSession(raise_for_status=True)
         self.pyqt_elements = {}
         self.setup_pyqt_elements = [] #list because there could be 2 cars
+        
         self.username  = account['username']
         self.password  = account['password']
         if 'nickname' in account:

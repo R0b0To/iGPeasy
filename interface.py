@@ -404,15 +404,21 @@ class StrategyPopup(QDialog):
         self.preview_slot = self.sender().property('preview')
         self.account = self.sender().property('account')
         self.driver_index = self.sender().property('driver_index')
-        print('open popup',self.preview_slot)
+
         self.race_mode = 'rf' if self.account.strategy[0]['rules']['refuelling'] == '1' else 'nrf'
         race_rule = 'tyre rules is off' if self.account.strategy[0]['rules']['two_tyres'] == '0' else 'tyre rule is on'
-        self.track= Track(self.account.strategy[0]['trackCode'])
+        self.track= Track(self.account.strategy[0]['trackCode'],self.account.strategy[0]['raceLaps'])
         self.fuel_km = iGPeasyHelp.fuel_calc(self.account.car[0]['fuel_economy']) 
         self.fuel_lap = int(self.fuel_km * self.track.info['length'] * 100)/100
+        self.track.set_tyre_wear(iGPeasyHelp.wear_calc(self.account.car[0]['tyre_economy'],self.track))
+        
+        self.account.pyqt_elements['track'] = self.track
+        
+        print(self.track.tyre)
 
         def set_text_total_laps_label(text):
             self.strat_widget_total_laps.setText(f"{text}/{self.account.strategy[0]['raceLaps']}")
+            
         
         def update_total():
            """recalculate the laps based on the fuel/push and set the total laps for nrf"""
@@ -588,6 +594,7 @@ class StrategyPopup(QDialog):
                 for i in range(4-(index+1)):
                     self.strat_stints[4-i].hide()   
                 update_total()         
+            
             self.pit_select_box.currentIndexChanged.connect(on_pit_box_change)
             description_widget = QWidget()
             description_layout = QVBoxLayout()
@@ -686,7 +693,7 @@ class StrategyPopup(QDialog):
                     self.stint_wear.show()
                     self.stint_tyre_selection.show()    
                 def set_wear(self,value):          
-                    self.stint_wear(value)
+                    self.stint_wear.setText(str(value))
                 def set_tyres(self,value):  
                     
                     self.stint_tyre_selection.setCurrentIndex(iGPeasyHelp().tyre_map[value])       
@@ -717,11 +724,25 @@ class StrategyPopup(QDialog):
                         
                         #using the strat list to do the total sum and the pit to slice it
                         total = sum(int(laps[1]) for laps in self.account.strategy[self.driver_index]['strat'][:int(self.account.strategy[self.driver_index]['pits'])+1])
+                        
+                       
+                        #tyre_w = self.account.pyqt_elements['track'].tyre[iGPeasyHelp().tyre_map_rev[self.stint_tyre_selection.currentIndex()]]
+                        
+                        #self.set_wear(iGPeasyHelp.stint_wear_calc(tyre_w,,self.account.pyqt_elements['track']))
+                        self.calculate_wear(self.account.strategy[self.driver_index]['strat'][self.index][1])
                         set_text_total_laps_label(str(total))
 
+                def calculate_wear(self,laps):
+                    tyre_w = self.account.pyqt_elements['track'].tyre[iGPeasyHelp().tyre_map_rev[self.stint_tyre_selection.currentIndex()]]
+                    self.set_wear(iGPeasyHelp.stint_wear_calc(tyre_w,laps,self.account.pyqt_elements['track']))
 
                 def on_laps_change(self,lap):
                     self.account.strategy[self.driver_index]['strat'][self.index][1] = str(lap)
+                    
+                    self.calculate_wear(lap)
+                    
+                    
+                    
                     update_total()
                 
 
@@ -884,6 +905,7 @@ class StrategyPopup(QDialog):
                 self.strat_stints[i].set_fuel(self.account.strategy[self.driver_index ]['strat'][i][2])
                 self.strat_stints[i].on_fuel_change(self.account.strategy[self.driver_index ]['strat'][i][2])
                 self.strat_stints[i].set_tyres(self.account.strategy[self.driver_index ]['strat'][i][0])
+                self.strat_stints[i].set_wear(iGPeasyHelp.stint_wear_calc(self.track.tyre[self.account.strategy[self.driver_index ]['strat'][i][0]],self.account.strategy[self.driver_index ]['strat'][i][1],self.track))
                 self.strat_stints[i].block_signals(False)
             
             if self.account.strategy[self.driver_index ]['advanced'] == '0':
@@ -1220,6 +1242,7 @@ class iGPeasyWindow(QMainWindow):
                             car['parts'][0].setText(str(response))
                         #update the button only for the car requested   
                         account.setup_pyqt_elements[driver_index]['parts'][1].setText("100%")
+                        account.setup_pyqt_elements[driver_index]['header'].setText(f"Restock in: {account.car[0]['restock']} race(s)")
                         account.setup_pyqt_elements[driver_index]['parts'][1].setDisabled(True)
                 @asyncSlot()
                 async def repair_engine(self):
@@ -1245,9 +1268,12 @@ class iGPeasyWindow(QMainWindow):
                 # --- Start of Section 3 ---
                 car_condition_widget =QWidget()
                 car_condition_layout = QGridLayout()
-                header_car_condition_1 = QLabel('have')
+                header_car_condition_1 = QLabel(f"Restock in: {account.car[0]['restock']} race(s)")
+                if account.car[driver_index]['repair_cost'] > 0:
+                    header_car_condition_1.setText(f"{header_car_condition_1.text()}\nRepair cost: {account.car[driver_index]['repair_cost']}")
                 parts_car_condition_label = QLabel('parts')
                 engine_car_condition_label =QLabel('Engine')
+                
                 parts_text = QLabel(str(account.car[0]['total_parts'])) #engine and parts are shared, only 1st driver has the values
                 engine_text = QLabel(str(account.car[0]['total_engines']))
                 parts_button = QPushButton(account.car[driver_index]['parts'])
@@ -1258,7 +1284,7 @@ class iGPeasyWindow(QMainWindow):
                 if account.car[driver_index]['parts'] == "100%":
                     parts_button.setDisabled(True)
                 engine_button.clicked.connect(repair_engine)
-                car_condition_layout.addWidget(header_car_condition_1,0,1,1,1)
+                car_condition_layout.addWidget(header_car_condition_1,0,0,1,3)
                 car_condition_layout.addWidget(parts_car_condition_label,1,0,1,1)
                 car_condition_layout.addWidget(engine_car_condition_label,2,0,1,1)
                 car_condition_layout.addWidget(parts_text,1,1,1,1)
@@ -1321,16 +1347,17 @@ class iGPeasyWindow(QMainWindow):
                 strategy_widget_layout.addWidget(driver_info_widget)
                 
                 setup_pyqt_elements =  {'parts':0,
-                                               'engine':0,
-                                               'setup':{'ride':0,
-                                                        'ride_offset':0,
-                                                        'wing':0,
-                                                        'wing_offset':0,
-                                                        'suspension':0,
-                                                        'ideal':0},
-                                                'strategy':{'modify':0,
-                                                            'preview':0,
-                                                            }}
+                                        'engine':0,
+                                        'header':0,
+                                        'track':0,
+                                        'setup':{'ride':0,
+                                                 'ride_offset':0,
+                                                 'wing':0,
+                                                 'wing_offset':0,
+                                                 'suspension':0,
+                                                 'ideal':0},
+                                        'strategy':{'modify':0,
+                                                    'preview':0,}}
                 
                 if account.has_league:   
                 # --- Start of Section 5 ---
@@ -1471,7 +1498,6 @@ class iGPeasyWindow(QMainWindow):
                     preview_strat.generate_preview(account.strategy[driver_index])
                     preview_strat.setProperty('info',account.username)
                     preview_container = QWidget()
-                    print('creating preview',preview_container)
                     preview_container.setLayout(preview_strat)
                     #strategy_container_layout.addWidget(laps_label,3,0,1,1)
                     strategy_container_layout.addWidget(preview_container,1,0,2,4)
@@ -1520,6 +1546,7 @@ class iGPeasyWindow(QMainWindow):
                 
                 setup_pyqt_elements['parts'] = [parts_text,parts_button]
                 setup_pyqt_elements['engine'] = [engine_text,engine_button]
+                setup_pyqt_elements['header'] = header_car_condition_1
 
                 
                 
@@ -1572,7 +1599,8 @@ class iGPeasyWindow(QMainWindow):
             self.main_layout.insertWidget(self.main_layout.count() -1,box)
             
             
-            account.pyqt_elements = {'money':money_label,
+            account.pyqt_elements = {'track':0,
+                                     'money':money_label,
                                      'tokens':token_label,
                                      'daily':daily_button,
                                      'design':car_design_button,
@@ -1589,7 +1617,7 @@ class iGPeasyWindow(QMainWindow):
 
             # Await all tasks to complete
         await asyncio.gather(*tasks)
-        print('adding stretch')
+
         self.main_layout.addStretch(1)
         
         
