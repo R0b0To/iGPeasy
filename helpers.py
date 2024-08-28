@@ -2,6 +2,7 @@
 import math
 from PyQt6.QtCore import Qt, QParallelAnimationGroup, QPropertyAnimation, QAbstractAnimation, QSize, Qt
 from PyQt6.QtWidgets import QWidget, QToolButton, QFrame, QScrollArea, QGridLayout, QSizePolicy,QComboBox, QStyledItemDelegate,QStylePainter,QWidget
+from PyQt6.QtGui import QIcon
 class Track():
   def __init__(self,track_code,race_laps):
     #last numbers are race laps for each tier  
@@ -72,7 +73,15 @@ class iGPeasyHelp():
                     "I" : "{:.1f}".format(calculation * tyreWearFactors['M']),
                     "W" : "{:.1f}".format(calculation * tyreWearFactors['M'])
                 }
-         
+    #add tyre text also
+    def tyre_select():
+        tyre_select_box = CustomComboBox()
+        for option in ['tyres/_SS.png','tyres/_S.png','tyres/_M.png','tyres/_H.png','tyres/_I.png','tyres/_W.png']:
+            tyre = QIcon(option)
+            tyre_select_box.addItem(tyre,'')
+        #tyre_select_box.setIconSize(QSize(47,47))
+        tyre_select_box.setFixedWidth(50)
+        return tyre_select_box      
     
     #tyre laps TRACK
     def stint_wear_calc(t,l,track):
@@ -181,7 +190,8 @@ class CustomComboBox(QComboBox):
         super().__init__(parent)
         self.setIconSize(QSize(50, 50))  # Set icon size for the dropdown
         self.setItemDelegate(CustomDelegate(self))
-
+    def get_current_tyre_text(self):
+        return iGPeasyHelp().tyre_map_rev[self.currentIndex()]
     def paintEvent(self, event):
         # Create a painter object for the combo box
         painter = QStylePainter(self)

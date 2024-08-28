@@ -1,3 +1,4 @@
+import asyncio
 import re, json, time, aiohttp
 from bs4 import BeautifulSoup
 
@@ -6,7 +7,7 @@ class iGP_account:
         self.session = aiohttp.ClientSession(raise_for_status=True)
         self.pyqt_elements = {}
         self.setup_pyqt_elements = [] #list because there could be 2 cars
-        
+        #self.offsets = [{'ride':0,'aero':0},{'ride':0,'aero':0}]
         self.username  = account['username']
         self.password  = account['password']
         if 'nickname' in account:
@@ -458,7 +459,6 @@ class iGP_account:
         else:
             return 'err'
     async def request_engine_repair(self,car):
-        
         if car['engine'] == "100%" or self.car[0]['total_parts'] == 0:
             return False
         
@@ -471,3 +471,16 @@ class iGP_account:
         await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=contract&enact=extend&eType=3&eId={driver['id']}&jsReply=contract&csrfName=&csrfToken=")
         
         return '50 races'
+    async def do_practice_lap(self,driver_number):
+        #tyre = SS,S,M...
+        print('doing practice lap')
+        ride_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['ride'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['ride_offset'].text())
+        aero_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['wing'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['wing_offset'].text())
+        #soft = 1, neutral = 2, firm = 3
+        suspension = self.setup_pyqt_elements[driver_number]['setup']['suspension'].currentIndex() + 1
+        url = (f"https://igpmanager.com/index.php?action=send&addon=igp&type=setup&dNum={driver_number+1}&ajax=1&race={self.strategy[0]['raceId']}&suspension={suspension}&ride={ride_with_offset}&aerodynamics={aero_with_offset}&practiceTyre={self.setup_pyqt_elements[driver_number]['setup']['practice_tyre'].get_current_tyre_text()}&csrfName=&csrfToken=")
+        response = await self.fetch_url(url)
+        await asyncio.sleep(3)
+        practice_lap = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&type=lapTime&lapId={response["lapId"]}&dNum={driver_number+1}&addon=igp&ajax=1&jsReply=lapTime&csrfName=&csrfToken=")
+        print(practice_lap)
+        return practice_lap

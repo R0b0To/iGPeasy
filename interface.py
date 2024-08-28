@@ -2,10 +2,10 @@ import asyncio
 import json
 import os
 from PyQt6.QtWidgets import QMainWindow,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
-from PyQt6.QtGui import QPixmap, QIcon,QPalette,QIntValidator,QAction,QFont
+from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont
 from PyQt6.QtCore import Qt,QSize
 import math
-from helpers import iGPeasyHelp, Section, CustomComboBox,Track
+from helpers import iGPeasyHelp, Section,Track
 from setups import CarSetup
 from qasync import  asyncSlot
 
@@ -449,15 +449,7 @@ class StrategyPopup(QDialog):
             }
         
         """)
-        #add tyre text also
-        def tyre_select():
-            tyre_select_box = CustomComboBox()
-            for option in ['tyres/_SS.png','tyres/_S.png','tyres/_M.png','tyres/_H.png','tyres/_I.png','tyres/_W.png']:
-                tyre_select_box.addItem(QIcon(option),'')
-            #tyre_select_box.setIconSize(QSize(47,47))
-            tyre_select_box.setFixedWidth(50)
-
-            return tyre_select_box      
+             
         
 
         self.setWindowTitle(f"{self.account.strategy[0]['raceName']} - {race_rule}")
@@ -616,7 +608,7 @@ class StrategyPopup(QDialog):
                     self.stint_container = QWidget()
                     stint_layout = QVBoxLayout()
                     stint_number = QLabel(stint_name)
-                    self.stint_tyre_selection = tyre_select()
+                    self.stint_tyre_selection = iGPeasyHelp.tyre_select()
 
                     self.mode = 'rf'
 
@@ -774,8 +766,8 @@ class StrategyPopup(QDialog):
             advanced_rain_use_2_label = QLabel('Use')
             advanced_rain_description_1 = QLabel('If water depth is above:')
             advanced_rain_description_2 = QLabel('If it stops raining for:')
-            self.advanced_tyre_selection_1 = tyre_select()
-            self.advanced_tyre_selection_2 = tyre_select()
+            self.advanced_tyre_selection_1 = iGPeasyHelp.tyre_select()
+            self.advanced_tyre_selection_2 = iGPeasyHelp.tyre_select()
             self.advanced_raining = QSpinBox()
             self.advanced_rain_stop = QSpinBox()
             self.advanced_raining.setSuffix(' mm')
@@ -1014,6 +1006,14 @@ class iGPeasyWindow(QMainWindow):
         daily_action = QAction("Daily all", self)
         daily_action.triggered.connect(self.get_daily_all)
         actions_menu.addAction(daily_action)
+
+        repair_action = QAction("Repair all", self)
+        repair_action.triggered.connect(self.repair_all)
+        actions_menu.addAction(repair_action)
+        
+        setupr_action = QAction("Setup all", self)
+        setupr_action.triggered.connect(self.setup_all)
+        actions_menu.addAction(setupr_action)
     
     
     
@@ -1039,14 +1039,69 @@ class iGPeasyWindow(QMainWindow):
         tasks = [] 
         for account in self.accounts:
             if 'page' in account.notify and 'nDailyReward' in account.notify['page']:
-                tasks.append(self.process_account(account))
+                tasks.append(self.process_daily_account(account))
             else:
                 print('reward disabled')
         if tasks:
             await asyncio.gather(*tasks)
-    async def process_account(self, account):
+    async def process_daily_account(self, account):
         res = await account.get_daily()
         account.pyqt_elements['daily'].setDisabled(True) 
+    @asyncSlot()
+    async def setup_all(self):
+        tasks = [] 
+        for account in self.accounts:
+            if account.has_league:
+                tasks.append(self.process_setup_account(account))
+        if tasks:
+            await asyncio.gather(*tasks)
+    async def process_setup_account(self, account):   
+        for index,driver in enumerate(account.strategy):
+            suggested_setup = CarSetup(account.strategy[0]['trackCode'],account.staff['drivers'][index]['height'],account.strategy[0]['tier'])
+            ride = str(suggested_setup.ride)
+            aero = str(suggested_setup.wing)
+            suspension = suggested_setup.suspension
+            account.setup_pyqt_elements[index]['setup']['suspension'].setCurrentIndex(suspension)
+            account.setup_pyqt_elements[index]['setup']['ride'].setText(ride)
+            account.setup_pyqt_elements[index]['setup']['wing'].setText(aero)
+            driver['ride'] = ride
+            driver['aero'] = aero
+            driver['suspension'] = suspension +1
+
+    @asyncSlot()
+    async def repair_all(self):
+        tasks = [] 
+        for account in self.accounts:
+            tasks.append(self.process_repair_account(account))
+            
+        await asyncio.gather(*tasks)
+    async def process_repair_account(self, account):
+        for driver_index,car in enumerate(account.car):
+            if car['parts'] != "100%":
+                res_parts = await account.request_parts_repair(car)
+                if res_parts != False:
+                    account.car[0]['total_parts'] = res_parts
+                    #parts are shared so it needs to update all the labels
+                    for car in account.setup_pyqt_elements:
+                        car['parts'][0].setText(str(res_parts))
+                    #update the button only for the car requested   
+                    account.setup_pyqt_elements[driver_index]['parts'][1].setText("100%")
+                    account.setup_pyqt_elements[driver_index]['header'].setText(f"Restock in: {account.car[0]['restock']} race(s)")
+                    account.setup_pyqt_elements[driver_index]['parts'][1].setDisabled(True)
+            else: print('parts already repaired',account.username,driver_index)
+            if int(account.car[0]['total_engines']) > 0:
+                res_engine = await account.request_engine_repair(car)
+                if res_engine != False:
+                    account.car[0]['total_engines'] = res_engine
+                    for car in account.setup_pyqt_elements:
+                        car['engine'][0].setText(str(res_engine))   
+                    account.setup_pyqt_elements[driver_index]['engine'][1].setText("100%")
+                    account.setup_pyqt_elements[driver_index]['engine'][1].setDisabled(True)
+            else: print('out of engines',account.username,driver_index)
+
+
+        account.pyqt_elements['daily'].setDisabled(True) 
+    
     @asyncSlot()
     async def add_accounts_popup(self):
         def clearLayout(layout):
@@ -1287,8 +1342,7 @@ class iGPeasyWindow(QMainWindow):
                     print('attempt to repair engine of',account.nickname,driver_index)
                     if int(account.car[0]['total_engines']) > 0:
                         response = await account.request_engine_repair(account.car[driver_index])
-                        #loop = asyncio.get_event_loop()
-                        #response = loop.run_until_complete(account.request_engine_repair(account.car[driver_index]))
+
                         if response == False:
                             print('already repaired')
                         else:
@@ -1300,7 +1354,10 @@ class iGPeasyWindow(QMainWindow):
                             account.setup_pyqt_elements[driver_index]['engine'][1].setDisabled(True)
                     else:
                         print('out of engines')
-                    
+                @asyncSlot()        
+                async def on_try_practice(self):
+                    print('attempting to do practice lap')
+                    await account.do_practice_lap(driver_index)   
                 strategy_widget = QWidget()
                 strategy_widget_layout = QHBoxLayout()
                 # --- Start of Section 3 ---
@@ -1356,8 +1413,13 @@ class iGPeasyWindow(QMainWindow):
                 tab_2_layout.addWidget(edit_skills_button,1,0,1,1)
                 tab_2_layout.addWidget(train_button,1,2,1,1)
 
-                practice_button = QPushButton('Practice')
-                tab_3_layout.addWidget(practice_button,0,0,1,1)
+                practice_button = QPushButton('Try')
+                tab_3_layout.addWidget(practice_button,0,1,1,1)
+                tyre_selection = iGPeasyHelp.tyre_select()
+                tyre_selection.setFixedWidth(30)
+                tab_3_layout.addWidget(tyre_selection,0,0,1,1)
+                tab_3.setLayout(tab_3_layout)
+                practice_button.clicked.connect(on_try_practice)
 
 
                 driver_info_widget.addTab(tab_1,'Driver')
@@ -1376,10 +1438,14 @@ class iGPeasyWindow(QMainWindow):
                     if self != "-":
                         driver_id = account.staff['drivers'][driver_index]['id']
                         offsets[driver_id][0] = int(self)
+                        #account.offsets[driver_index]['ride'] = int(self)
+                        #save_json_offsets()
                 def wing_offset_change(self):
                     if self != "-":
                         driver_id = account.staff['drivers'][driver_index]['id']
                         offsets[driver_id][1] = int(self)
+                        #account.offsets[driver_index]['aero'] = int(self)
+                        #save_json_offsets()
 
                 strategy_widget_layout.addWidget(car_condition_widget)
                 strategy_widget_layout.addWidget(driver_info_widget)
@@ -1393,7 +1459,8 @@ class iGPeasyWindow(QMainWindow):
                                                  'wing':0,
                                                  'wing_offset':0,
                                                  'suspension':0,
-                                                 'ideal':0},
+                                                 'ideal':0,
+                                                 'practice_tyre':0},
                                         'strategy':{'modify':0,
                                                     'preview':0,}}
                 
@@ -1475,7 +1542,8 @@ class iGPeasyWindow(QMainWindow):
                                   'wing':wing_input,
                                   'wing_offset':wing_input_offset,
                                   'suspension':suspension_selection,
-                                  'ideal':ideal_button}
+                                  'ideal':ideal_button,
+                                  'practice_tyre':tyre_selection}
                     setup_pyqt_elements['setup'] = setup_pyqt
                     
                     class display_strat(QVBoxLayout):
