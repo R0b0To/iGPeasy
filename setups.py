@@ -1,6 +1,6 @@
 class CarSetup:
     def __init__(self,track_code,height,tier):
-        tier_mapping = {20: 1, 50: 2, 100: 3}
+        tier_mapping = {20: 1, 50: 2, 100: 3} #tier should be somewhere in the account.
         self.track_code = track_code
         self.driver_height = (int(height) // 5) * 5
         self.tier = tier_mapping[tier]

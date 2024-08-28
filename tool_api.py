@@ -1,9 +1,13 @@
+import asyncio
 import re, json, time, aiohttp
 from bs4 import BeautifulSoup
 
 class iGP_account:
     def __init__(self,account):
         self.session = aiohttp.ClientSession(raise_for_status=True)
+        self.pyqt_elements = {}
+        self.setup_pyqt_elements = [] #list because there could be 2 cars
+        #self.offsets = [{'ride':0,'aero':0},{'ride':0,'aero':0}]
         self.username  = account['username']
         self.password  = account['password']
         if 'nickname' in account:
@@ -12,13 +16,15 @@ class iGP_account:
             self.nickname = None
         self.row_index = None
         self.parts_button = None
+    
+    
     async def fetch_url(self,fetch_url):
         async with self.session.get(fetch_url) as response:
                 if response.status == 200:
                     json_response = json.loads(await response.text())
 
                     if 'vars' not in json_response:
-                       return 'contract?' 
+                       return json_response 
 
                     json_data = json_response['vars']
                     return json_data
@@ -44,6 +50,7 @@ class iGP_account:
         self.car = await self.car_info()
         self.staff = await self.staff_info()
         self.strategy = await self.next_race_info()
+        await self.get_sponsors()
     async def research_info(self):
         research_display = await self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=research&csrfName=&csrfToken=")
         car_overview= await self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=design&csrfName=&csrfToken=")
@@ -75,7 +82,11 @@ class iGP_account:
         async with self.session.post(url) as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())
-                    return json_data
+                    soup = BeautifulSoup(json_data['message'], 'html.parser')
+                    #xp gain is '<span>5</span><img src="https://igpmanager.com/app/design/dr-xp.png" class="drSubImage" />'
+                    #money '<span>$16k</span><img src="https://igpmanager.com/app/design/dr-cash.png" class="drSubImage" />'
+                    #'<span>1</span><img src="https://igpmanager.com/app/design/dr-part.png" class="drSubImage" />'
+                    return soup.find('span').get_text()
     def save_setup_field(self,pyqt_elements):
         self.setups = pyqt_elements
     async def async_login(self):
@@ -181,8 +192,7 @@ class iGP_account:
         async with self.session.get('https://igpmanager.com/index.php?action=fetch&p=finances&csrfName=&csrfToken=') as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())['vars']
-                    contract = 0
-                    empty_sponsor = {'income':'0','bonus':'0','expire':'0'}
+                    empty_sponsor = {'income':'0','bonus':'0','expire':'0','status':False}
                     sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
                     #primary
                     if json_data['s1Name'] == '':
@@ -192,7 +202,7 @@ class iGP_account:
                         sponsors['s1']['income'] = contract_soup[1].contents[2].text
                         sponsors['s1']['bonus'] = contract_soup[3].text
                         sponsors['s1']['expire'] = contract_soup[5].text
-                        contract+=1
+                        sponsors['s1']['status'] = True
                     #secondary
                     if json_data['s2Name'] == '':
                         print('secondary sponsor expired')
@@ -201,17 +211,14 @@ class iGP_account:
                         sponsors['s2']['income'] = contract_soup[1].text
                         sponsors['s2']['bonus'] = contract_soup[3].text
                         sponsors['s2']['expire'] = contract_soup[5].text
-                        contract+=1 
+                        sponsors['s2']['status'] = True
 
                     self.sponsors = sponsors        
 
 
-                    return f"{contract}/2"
     async def save_sponsor(self,number,id):
         sign_sponsor = f"https://igpmanager.com/index.php?action=send&type=contract&enact=sign&eType=5&eId={id}&location={number}&jsReply=contract&csrfName=&csrfToken="
-        
         json_data = await self.fetch_url(sign_sponsor)
-
 
     async def staff_info(self): 
          
@@ -294,6 +301,7 @@ class iGP_account:
                                      'rainStop':[json_data['d1RainStopTyre'],BeautifulSoup(json_data['d1RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d1PushLevel'], 'html.parser').find('option',selected=True)['value'],
                                      'strat': saved_strat,
+                                     'totalLaps' :json_data['d1TotalLaps'],
                                      'raceId':json_data['raceId'],
                                      'tier':json_data['setupMax']})
                     # check if 2 cars
@@ -308,6 +316,7 @@ class iGP_account:
                                      'aero':json_data['d2Aerodynamics'],
                                      'ride':json_data['d2Ride'],
                                      'pits':json_data['d2Pits'],
+                                     'totalLaps' :json_data['d2TotalLaps'],
                                      'rainStart':[json_data['d2RainStartTyre'],BeautifulSoup(json_data['d2RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'rainStop':[json_data['d2RainStopTyre'],BeautifulSoup(json_data['d2RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
@@ -442,13 +451,36 @@ class iGP_account:
 
         
     async def request_parts_repair(self,car):
-        await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken=")
-        return '100%'
+        if car['parts'] == "100%" or self.car[0]['total_parts'] < car['repair_cost'] :
+            return False
+        response = await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken=")
+        if response['update'] != False:
+            return response['newTotal']
+        else:
+            return 'err'
     async def request_engine_repair(self,car):
-        await self.fetch_url( f"https://igpmanager.com/index.php?action=send&type=engine&car={car['id']}&btn=%23c{car['car_number']}EngSwap&jsReply=fix&csrfName=&csrfToken=")
-        #to do check response to see if engine was repaired
-        return '100%'
+        if car['engine'] == "100%" or self.car[0]['total_parts'] == 0:
+            return False
+        
+        response = await self.fetch_url( f"https://igpmanager.com/index.php?action=send&type=engine&car={car['id']}&btn=%23c{car['car_number']}EngSwap&jsReply=fix&csrfName=&csrfToken=")
+        if response['update'] != False:
+            return response['newTotal']
+        else:
+            return 'err'
     async def extend_contract_driver(self,driver):
         await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=contract&enact=extend&eType=3&eId={driver['id']}&jsReply=contract&csrfName=&csrfToken=")
         
         return '50 races'
+    async def do_practice_lap(self,driver_number):
+        #tyre = SS,S,M...
+        print('doing practice lap')
+        ride_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['ride'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['ride_offset'].text())
+        aero_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['wing'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['wing_offset'].text())
+        #soft = 1, neutral = 2, firm = 3
+        suspension = self.setup_pyqt_elements[driver_number]['setup']['suspension'].currentIndex() + 1
+        url = (f"https://igpmanager.com/index.php?action=send&addon=igp&type=setup&dNum={driver_number+1}&ajax=1&race={self.strategy[0]['raceId']}&suspension={suspension}&ride={ride_with_offset}&aerodynamics={aero_with_offset}&practiceTyre={self.setup_pyqt_elements[driver_number]['setup']['practice_tyre'].get_current_tyre_text()}&csrfName=&csrfToken=")
+        response = await self.fetch_url(url)
+        await asyncio.sleep(3)
+        practice_lap = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&type=lapTime&lapId={response["lapId"]}&dNum={driver_number+1}&addon=igp&ajax=1&jsReply=lapTime&csrfName=&csrfToken=")
+        print(practice_lap)
+        return practice_lap
