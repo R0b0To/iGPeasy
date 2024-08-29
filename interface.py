@@ -1,11 +1,11 @@
 import asyncio
 import json
 import os
-from PyQt6.QtWidgets import QMainWindow,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
+from PyQt6.QtWidgets import QMainWindow,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont
 from PyQt6.QtCore import Qt,QSize
 import math
-from helpers import iGPeasyHelp, Section,Track
+from helpers import iGPeasyHelp, Section,Track,PseudoComboBox
 from setups import CarSetup
 from qasync import  asyncSlot
 
@@ -608,7 +608,7 @@ class StrategyPopup(QDialog):
                     self.stint_container = QWidget()
                     stint_layout = QVBoxLayout()
                     stint_number = QLabel(stint_name)
-                    self.stint_tyre_selection = iGPeasyHelp.tyre_select()
+                    self.stint_tyre_selection = iGPeasyHelp.tyre_select(50,50)
 
                     self.mode = 'rf'
 
@@ -766,8 +766,8 @@ class StrategyPopup(QDialog):
             advanced_rain_use_2_label = QLabel('Use')
             advanced_rain_description_1 = QLabel('If water depth is above:')
             advanced_rain_description_2 = QLabel('If it stops raining for:')
-            self.advanced_tyre_selection_1 = iGPeasyHelp.tyre_select()
-            self.advanced_tyre_selection_2 = iGPeasyHelp.tyre_select()
+            self.advanced_tyre_selection_1 = iGPeasyHelp.tyre_select(50,50)
+            self.advanced_tyre_selection_2 = iGPeasyHelp.tyre_select(50,50)
             self.advanced_raining = QSpinBox()
             self.advanced_rain_stop = QSpinBox()
             self.advanced_raining.setSuffix(' mm')
@@ -973,7 +973,7 @@ class iGPeasyWindow(QMainWindow):
     def __init__(self,parent):
         super().__init__()
         self.parent=parent
- 
+        self.widget_size = QSize(170,100)
         self.open_account_button = False
         self.iGPeasyWindow_initialized = False
         
@@ -1011,9 +1011,9 @@ class iGPeasyWindow(QMainWindow):
         repair_action.triggered.connect(self.repair_all)
         actions_menu.addAction(repair_action)
         
-        setupr_action = QAction("Setup all", self)
-        setupr_action.triggered.connect(self.setup_all)
-        actions_menu.addAction(setupr_action)
+        setup_action = QAction("Setup all", self)
+        setup_action.triggered.connect(self.setup_all)
+        actions_menu.addAction(setup_action)
     
     
     
@@ -1278,8 +1278,8 @@ class iGPeasyWindow(QMainWindow):
             money_label = QLabel(iGPeasyHelp.abbreviate_number(int(account.team['_balance'])))
             token_label = QLabel(account.manager['tokens'])
             token_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            money_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            token_img = QPixmap(f'assets/token.png')
+            money_label.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+            token_img = QPixmap(f'assets/token.png') 
             img_label = QLabel()
             img_label.setPixmap(token_img)
             img_label.setScaledContents(True)
@@ -1292,14 +1292,19 @@ class iGPeasyWindow(QMainWindow):
             misc_tab_3_layout.addWidget(sponsor_button_2,2,0,1,2)
             misc_tab_3_layout.addWidget(sponsor_1_select,1,0,1,2)
             misc_tab_3_layout.addWidget(sponsor_2_select,3,0,1,2)
+            misc_tab_3_layout.setContentsMargins(0,0,0,0)
+            
             misc_tab_1.setLayout(misc_tab_1_layout) 
             misc_tab_2.setLayout(misc_tab_2_layout) 
-            misc_tab_3.setLayout(misc_tab_3_layout) 
-            misc_tab_widget.addTab(misc_tab_1,"misc")
+            misc_tab_3.setLayout(misc_tab_3_layout)
+            misc_tab_3.setContentsMargins(0,0,0,0) 
+            misc_tab_widget.addTab(misc_tab_1,"*")
             misc_tab_widget.addTab(misc_tab_2,"car")
             misc_tab_widget.addTab(misc_tab_3,"sponsor")
+            misc_tab_widget.setContentsMargins(0,0,0,0)
+            
 
-            misc_tab_widget.setFixedWidth(170)
+            misc_tab_widget.setFixedSize(QSize(100,120))                             #TODO: 
         # --- End of Section 1 ---
             if account.has_league:
             # --- Start of Section 2 ---
@@ -1309,14 +1314,14 @@ class iGPeasyWindow(QMainWindow):
                     race_time_label = QLabel(account.strategy[0]['raceTime'])
                     race_weather_label = QLabel(account.strategy[0]['pWeather'])
                     car_design_button =QPushButton('car/research')
-                    car_design_button.setProperty('account',account) #----------------------------------------------------------------------
+                    car_design_button.setProperty('account',account) 
                     car_design_button.clicked.connect(self.load_research)
                     race_info_grid_layout.addWidget(race_name_label,0,0,1,1)
                     race_info_grid_layout.addWidget(race_time_label,1,0,1,1)
                     race_info_grid_layout.addWidget(race_weather_label,2,0,1,1)
                     race_info_grid_layout.addWidget(car_design_button,3,0,1,1)
                     race_info_widget.setLayout(race_info_grid_layout)
-                    race_info_widget.setFixedWidth(150)
+                    race_info_widget.setFixedSize(QSize(120,120))                             #TODO: 
                       
                     # --- End of Section 2 --- 
             car_design_button = None
@@ -1357,7 +1362,12 @@ class iGPeasyWindow(QMainWindow):
                 @asyncSlot()        
                 async def on_try_practice(self):
                     print('attempting to do practice lap')
-                    await account.do_practice_lap(driver_index)   
+                    res = await account.do_practice_lap(driver_index)
+                    if res!= -1:
+                        practice_combo.add_items(iGPeasyHelp.create_row_widget(res[0]))
+                        if[res[1]['hasMoreLaps']] == False:
+                            practice_button.setDisabled(True)
+                    else: practice_button.setDisabled(True)               
                 strategy_widget = QWidget()
                 strategy_widget_layout = QHBoxLayout()
                 # --- Start of Section 3 ---
@@ -1387,7 +1397,7 @@ class iGPeasyWindow(QMainWindow):
                 car_condition_layout.addWidget(parts_button,1,2,1,1)
                 car_condition_layout.addWidget(engine_button,2,2,1,1)
                 car_condition_widget.setLayout(car_condition_layout)
-                car_condition_widget.setFixedWidth(150)
+                car_condition_widget.setFixedSize(QSize(130,100))                 #TODO: 
                 # --- End of Section 3 --- 
                 
                 # --- Start of Section 4 ---
@@ -1396,8 +1406,7 @@ class iGPeasyWindow(QMainWindow):
                 tab_1_layout = QGridLayout()
                 tab_2 = QWidget()
                 tab_2_layout = QGridLayout()
-                tab_3 = QWidget()
-                tab_3_layout = QGridLayout()
+
                 driver_name_label = QLabel(account.staff['drivers'][driver_index]['name'])
                 driver_health_value_label = QLabel(account.staff['drivers'][driver_index]['health']) #possibly button to use tokens
                 #driver_fav_track_label = QLabel(self.account.staff['drivers'][driver_index]['fav']) to do
@@ -1413,19 +1422,11 @@ class iGPeasyWindow(QMainWindow):
                 tab_2_layout.addWidget(edit_skills_button,1,0,1,1)
                 tab_2_layout.addWidget(train_button,1,2,1,1)
 
-                practice_button = QPushButton('Try')
-                tab_3_layout.addWidget(practice_button,0,1,1,1)
-                tyre_selection = iGPeasyHelp.tyre_select()
-                tyre_selection.setFixedWidth(30)
-                tab_3_layout.addWidget(tyre_selection,0,0,1,1)
-                tab_3.setLayout(tab_3_layout)
-                practice_button.clicked.connect(on_try_practice)
-
-
+                
                 driver_info_widget.addTab(tab_1,'Driver')
                 driver_info_widget.addTab(tab_2,'More')
-                driver_info_widget.addTab(tab_3,'Practice')
-                driver_info_widget.setFixedWidth(170)
+                #driver_info_widget.addTab(tab_3,'Practice')
+                driver_info_widget.setFixedSize(self.widget_size)                 #TODO: 
                 # --- End of Section 4 ---
 
 
@@ -1465,7 +1466,40 @@ class iGPeasyWindow(QMainWindow):
                                                     'preview':0,}}
                 
                 if account.has_league:   
-                # --- Start of Section 5 ---
+                    # --- Start of Section 5 ---
+                    strategy_tab_widget = QTabWidget()
+                    strategy_container = QWidget()
+                    strategy_tab_widget.setFixedSize(QSize(200,100))
+                    tab_practice = QWidget()
+                    tab_practice_layout = QGridLayout()
+                    practice_button = QPushButton('Try')
+                    tab_practice_layout.addWidget(practice_button,0,1,1,1)
+                    tyre_selection = iGPeasyHelp.tyre_select(30,30)
+                    tyre_selection.setFixedWidth(30)
+                    tab_practice_layout.addWidget(tyre_selection,0,0,1,1)
+                    tab_practice_layout.setSpacing(0) 
+                    tab_practice_layout.setContentsMargins(0, 0, 0, 0)
+                    tab_practice.setLayout(tab_practice_layout)
+                    practice_button.clicked.connect(on_try_practice)
+
+
+                    practice_combo = PseudoComboBox()
+                    
+                    if account.strategy !=False:
+                        if len(account.strategy[driver_index]['practice']) == 5:
+                            practice_button.setDisabled(True)
+                        for row in account.strategy[driver_index]['practice']:
+                            row_widget = iGPeasyHelp.create_row_widget(row)
+                            practice_combo.add_items(row_widget)
+                            #practice_scroll_area_layout.addWidget(row_widget)
+                        #practice_scroll_area.setWidget(container)
+                        
+                        tab_practice_layout.addWidget(practice_combo,1,0,1,2)
+                    
+                    
+                    strategy_tab_widget.addTab(strategy_container,"Strategy")
+                    strategy_tab_widget.addTab(tab_practice,"Practice")
+                    
                     strategy_setup_container = QWidget()
                     strategy_setup_container_layout = QHBoxLayout()
                     setup_container = QWidget()
@@ -1535,8 +1569,11 @@ class iGPeasyWindow(QMainWindow):
                     setup_container_layout.addWidget(wing_input_offset,2,2,1,1)
                     setup_container_layout.addWidget(ideal_button,3,0,1,3)
                     setup_container.setLayout(setup_container_layout)
-                    setup_container.setMaximumSize(QSize(100,190))
-                    setup_container.setMinimumSize(QSize(120,140))
+                    setup_container.setContentsMargins(0,0,0,0)
+                    setup_container_layout.setContentsMargins(0,0,0,0)
+                    setup_container_layout.setSpacing(0)
+                    setup_container.setFixedSize(QSize(120,100)) #------------------------                 #TODO: 
+                    #setup_container.setMinimumSize(QSize(120,140))
                     setup_pyqt = {'ride':ride_height_input,
                                   'ride_offset':ride_height_input_offset,
                                   'wing':wing_input,
@@ -1548,7 +1585,8 @@ class iGPeasyWindow(QMainWindow):
                     
                     class display_strat(QVBoxLayout):
                         def __init__(self,race_laps,parent=None):
-                              super().__init__(parent)
+                              super().__init__()
+                              self.parent = parent
                               self.race_laps = race_laps
                             
 
@@ -1587,26 +1625,29 @@ class iGPeasyWindow(QMainWindow):
                                 img_label.setScaledContents(True)
                                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                                 inner_layout.addWidget(img_label,0,column)
-                                inner_layout.addWidget(label,0,column,1,1)
+                                inner_layout.addWidget(label,0,column)
                                 column += 1
 
                             container.setLayout(inner_layout)
-                            self.estimate_laps = QLabel(f" Total laps estimate: {str(total_laps)}/ {self.race_laps}")
+                            self.estimate_laps = QLabel(f"{str(total_laps)}/ {self.race_laps}")
                             self.addWidget(container) 
-                            self.addWidget(self.estimate_laps) 
+                            
+                            self.parent.addWidget(self.estimate_laps,0,1,1,1)
+                            
 
                     
-                    strategy_container = QWidget()
+                    #strategy_container = QWidget()
                     strategy_container_layout = QGridLayout()
-                    strategy_container.setMinimumWidth(220)
-
-                    preview_strat = display_strat(str(account.strategy[0]['raceLaps']))
+                    strategy_container.setFixedSize(QSize(200,100)) #---------------------------------------TODO:--strategy size
+                    strategy_container_layout.setSpacing(0) 
+                    strategy_container_layout.setContentsMargins(0, 0, 0, 0)
+                    preview_strat = display_strat(str(account.strategy[0]['raceLaps']),strategy_container_layout)
                     preview_strat.generate_preview(account.strategy[driver_index])
                     preview_strat.setProperty('info',account.username)
                     preview_container = QWidget()
                     preview_container.setLayout(preview_strat)
                     #strategy_container_layout.addWidget(laps_label,3,0,1,1)
-                    strategy_container_layout.addWidget(preview_container,1,0,2,4)
+                    strategy_container_layout.addWidget(preview_container,1,0,1,2)
 
                  
                     modify_strategy_button = QPushButton('modify')
@@ -1619,16 +1660,19 @@ class iGPeasyWindow(QMainWindow):
                     strategy_preview_container = QWidget()
                     strategy_preview_container_layout = QHBoxLayout()
                     strategy_container_layout.addWidget(modify_strategy_button,0,0,1,1)
-
+                    
                     strategy_preview_container.setLayout(strategy_preview_container_layout)
-                    strategy_container_layout.addWidget(strategy_preview_container,1,0,4,1)
+                    strategy_container_layout.addWidget(strategy_preview_container,1,0,2,1)
+                    
                     strategy_container.setLayout(strategy_container_layout)
                     strategy_setup_container_layout.addWidget(setup_container)
-                    strategy_setup_container_layout.addWidget(strategy_container)
+                    #strategy_setup_container_layout.addWidget(strategy_container)
                     strategy_setup_container.setLayout(strategy_setup_container_layout)
+                    
                     strategy_widget_layout.addWidget(strategy_setup_container)
-                    
-                    
+                    strategy_widget_layout.addWidget(strategy_tab_widget)
+                    strategy_setup_container_layout.setContentsMargins(0,0,0,0) #TODO:
+                    strategy_setup_container_layout.setSpacing(0)
                     strategy_pyqt = {'modify':modify_strategy_button,
                                      'preview':strategy_preview_container_layout,
                                     }
@@ -1662,7 +1706,9 @@ class iGPeasyWindow(QMainWindow):
                 
 
             save_button = QPushButton('Save')
-            save_button.setMinimumHeight(120)
+            save_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+           
+           
             
             @asyncSlot()
             async def on_save_strategy(self):

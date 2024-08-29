@@ -279,8 +279,11 @@ class iGP_account:
                     ##       stint              stint
                     ## [[tyre,laps,fuel]],[[tyre,laps,fuel]]
                     saved_strat = [[json_data[f'd1s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
-
-
+                    soup = BeautifulSoup(json_data['d1Laps'], 'html.parser')
+                    string = json_data['d1Laps']
+                    practice_list = []
+                    if string != '<tr><td colspan="7"></td></tr>':
+                        practice_list = [[tds[0]['class'][0][3:]] + [td.get_text() for td in tds[1:]] for tr in soup.find_all('tr') if (tds := tr.find_all('td'))]    
 
                     strategy.append({'rules':json.loads(json_data['rulesJson']),
                                      'rulesJson':json_data['rulesJson'],
@@ -303,9 +306,15 @@ class iGP_account:
                                      'strat': saved_strat,
                                      'totalLaps' :json_data['d1TotalLaps'],
                                      'raceId':json_data['raceId'],
-                                     'tier':json_data['setupMax']})
+                                     'tier':json_data['setupMax'],
+                                     'practice':practice_list})
                     # check if 2 cars
                     if json_data['d2Pits'] != 0:
+                        soup = BeautifulSoup(json_data['d2Laps'], 'html.parser')
+                        practice_list = []
+                        string = json_data['d2Laps']
+                        if string != '<tr><td colspan="7"></td></tr>':
+                            practice_list = [[tds[0]['class'][0][3:]] + [td.get_text() for td in tds[1:]] for tr in soup.find_all('tr') if (tds := tr.find_all('td'))] 
                         saved_strat_data = BeautifulSoup(json_data['d2FuelOrLaps'], 'html.parser')
                         saved_strat = [[json_data[f'd2s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
                         strategy.append({'rules':json.loads(json_data['rulesJson']),
@@ -320,7 +329,8 @@ class iGP_account:
                                      'rainStart':[json_data['d2RainStartTyre'],BeautifulSoup(json_data['d2RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'rainStop':[json_data['d2RainStopTyre'],BeautifulSoup(json_data['d2RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
-                                     'strat':saved_strat})
+                                     'strat':saved_strat,
+                                     'practice':practice_list})
 
                     return strategy
     async def save_research(self,attributes,points):
@@ -476,11 +486,17 @@ class iGP_account:
         print('doing practice lap')
         ride_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['ride'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['ride_offset'].text())
         aero_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['wing'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['wing_offset'].text())
+        tyre = self.setup_pyqt_elements[driver_number]['setup']['practice_tyre'].get_current_tyre_text()
         #soft = 1, neutral = 2, firm = 3
         suspension = self.setup_pyqt_elements[driver_number]['setup']['suspension'].currentIndex() + 1
-        url = (f"https://igpmanager.com/index.php?action=send&addon=igp&type=setup&dNum={driver_number+1}&ajax=1&race={self.strategy[0]['raceId']}&suspension={suspension}&ride={ride_with_offset}&aerodynamics={aero_with_offset}&practiceTyre={self.setup_pyqt_elements[driver_number]['setup']['practice_tyre'].get_current_tyre_text()}&csrfName=&csrfToken=")
+        suspension_text = self.setup_pyqt_elements[driver_number]['setup']['suspension'].currentText()
+        url = (f"https://igpmanager.com/index.php?action=send&addon=igp&type=setup&dNum={driver_number+1}&ajax=1&race={self.strategy[0]['raceId']}&suspension={suspension}&ride={ride_with_offset}&aerodynamics={aero_with_offset}&practiceTyre={tyre}&csrfName=&csrfToken=")
         response = await self.fetch_url(url)
         await asyncio.sleep(3)
         practice_lap = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&type=lapTime&lapId={response["lapId"]}&dNum={driver_number+1}&addon=igp&ajax=1&jsReply=lapTime&csrfName=&csrfToken=")
         print(practice_lap)
-        return practice_lap
+        if practice_lap['success'] ==True:
+            good_format = [[tyre,suspension_text,ride_with_offset,aero_with_offset,practice_lap['lapFuel'],practice_lap['lapTyre'],practice_lap['lapTime']],practice_lap]
+            return good_format
+        else:
+            return -1
