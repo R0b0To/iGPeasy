@@ -54,7 +54,7 @@ class iGPeasyHelp():
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
         
-        
+        row_layout.setContentsMargins(0,0,0,0)
         tyre = QLabel()
         tyre.setPixmap(QPixmap(f"tyres/_{row_data[0]}.png"))
         tyre.setFixedSize(QSize(20,20))
@@ -68,7 +68,9 @@ class iGPeasyHelp():
         
 
         for item in [tyre,suspension,ride,aero,fuel,wear,lap]:
+            item.setAlignment(Qt.AlignmentFlag.AlignLeading|Qt.AlignmentFlag.AlignTop)
             row_layout.addWidget(item)
+           
         return row_widget    
         
     def abbreviate_number(n):
@@ -206,45 +208,42 @@ class PseudoComboBox(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Set up the main layout
-        self.main_layout = QVBoxLayout()
+        self.main_layout = QHBoxLayout()
         self.setLayout(self.main_layout)
-        
-        # The display area for the first item
-        self.display_widget = QFrame()
-        self.display_widget.setFrameShape(QFrame.Shape.Box)
-        self.display_layout = QHBoxLayout()
-        self.display_widget.setLayout(self.display_layout)
-        
-        # Add the display widget to the main layout
-        self.main_layout.addWidget(self.display_widget)
-        
-        # Connect click on display widget to show dropdown
-        self.display_widget.mousePressEvent = self.show_dropdown
-        
-        # Create the dropdown widget, but don't show it yet
+
         self.dropdown = QWidget()
         self.dropdown_layout = QVBoxLayout()
         self.dropdown.setLayout(self.dropdown_layout)
         self.dropdown.setWindowFlags(Qt.WindowType.Popup)
         
-        # Set a maximum height for the dropdown (you can adjust this)
-        #self.dropdown.setFixedHeight(150)
+    def add_event(self,widget):
+        widget.mousePressEvent = self.show_dropdown
+
+    
+    def set_main_widget(self,widget):
+        if self.main_layout.count() > 0:
+            old_widget = self.main_layout.itemAt(0).widget()
+
+            if old_widget is not None:
+                self.main_layout.removeWidget(old_widget)
+                self.add_items(old_widget)
+        widget.mousePressEvent = self.show_dropdown
+        self.main_layout.addWidget(widget)
     def add_items(self, item):
-        self.dropdown_layout.addWidget(item)
+        self.dropdown_layout.insertWidget(0,item)
         
     
     def show_dropdown(self, event):
-        # Position the dropdown just below the display widget
-        pos = self.mapToGlobal(self.display_widget.pos())
-        self.dropdown.setGeometry(QRect(pos + QPoint(0, self.display_widget.height()), 
-                                        self.display_widget.sizeHint()))
+        pos = self.mapToGlobal(self.pos())
+        dropdown_width = self.sizeHint().width() + 50
+        dropdown_height = self.sizeHint().height() 
+        self.dropdown.setGeometry(QRect(pos + QPoint(0, self.height()-40),QSize(dropdown_width, dropdown_height)))
         self.dropdown.show()   
 class CustomComboBox(QComboBox):
     def __init__(self,w,h,parent=None):
         super().__init__(parent)
         self.incon_size = QSize(w,h)
-        self.setIconSize(self.incon_size)  # Set icon size for the dropdown
+        self.setIconSize(self.incon_size)
         self.setItemDelegate(CustomDelegate(self,w,h))
 
         

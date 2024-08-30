@@ -495,6 +495,7 @@ class iGP_account:
         await asyncio.sleep(3)
         practice_lap = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&type=lapTime&lapId={response["lapId"]}&dNum={driver_number+1}&addon=igp&ajax=1&jsReply=lapTime&csrfName=&csrfToken=")
         print(practice_lap)
+        #TODO: read the driver's comment to see if the setup is good
         if practice_lap['success'] ==True:
             good_format = [[tyre,suspension_text,ride_with_offset,aero_with_offset,practice_lap['lapFuel'],practice_lap['lapTyre'],practice_lap['lapTime']],practice_lap]
             return good_format

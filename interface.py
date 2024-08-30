@@ -1,9 +1,9 @@
 import asyncio
 import json
 import os
-from PyQt6.QtWidgets import QMainWindow,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
+from PyQt6.QtWidgets import QMainWindow,QProgressBar,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont
-from PyQt6.QtCore import Qt,QSize
+from PyQt6.QtCore import Qt,QSize,QTimer
 import math
 from helpers import iGPeasyHelp, Section,Track,PseudoComboBox
 from setups import CarSetup
@@ -1359,15 +1359,37 @@ class iGPeasyWindow(QMainWindow):
                             account.setup_pyqt_elements[driver_index]['engine'][1].setDisabled(True)
                     else:
                         print('out of engines')
+                def update_progress():
+                    # Increment the progress value
+                    progress_value = timer.property('progress_value') +1
+                    timer.setProperty("progress_value",progress_value)
+                    progress_bar.setValue(progress_value)
+
+                    # Stop the timer and restore the button once progress reaches 100
+                    if progress_value >= 100:
+                        timer.stop()
+                        
+                
                 @asyncSlot()        
                 async def on_try_practice(self):
-                    print('attempting to do practice lap')
+                    
+                    timer.setProperty("progress_value",0)
+                    progress_bar.setValue(0)
+                    practice_button.hide()
+                    progress_bar.show()
+                    timer.start(30)
                     res = await account.do_practice_lap(driver_index)
+                    
                     if res!= -1:
-                        practice_combo.add_items(iGPeasyHelp.create_row_widget(res[0]))
-                        if[res[1]['hasMoreLaps']] == False:
+                        practice_combo.set_main_widget(iGPeasyHelp.create_row_widget(res[0]))
+                        #practice_combo.add_items(iGPeasyHelp.create_row_widget(res[0]))
+                        if res[1]['hasMoreLaps'] == False:
                             practice_button.setDisabled(True)
                     else: practice_button.setDisabled(True)               
+                    
+                    progress_bar.hide()
+                    practice_button.show()
+
                 strategy_widget = QWidget()
                 strategy_widget_layout = QHBoxLayout()
                 # --- Start of Section 3 ---
@@ -1468,35 +1490,63 @@ class iGPeasyWindow(QMainWindow):
                 if account.has_league:   
                     # --- Start of Section 5 ---
                     strategy_tab_widget = QTabWidget()
+                    #strategy_tab_widget.setContentsMargins(0,0,0,0)
                     strategy_container = QWidget()
-                    strategy_tab_widget.setFixedSize(QSize(200,100))
+                    strategy_tab_widget.setFixedSize(QSize(250,100))                                    #TODO:
                     tab_practice = QWidget()
-                    tab_practice_layout = QGridLayout()
+                    
+                    tab_practice_layout = QVBoxLayout()
+                    
+                    tab_practice.setContentsMargins(0, 0, 0, 0)
+                    
+                    tab_practice.setFixedSize(QSize(250,100))
                     practice_button = QPushButton('Try')
-                    tab_practice_layout.addWidget(practice_button,0,1,1,1)
-                    tyre_selection = iGPeasyHelp.tyre_select(30,30)
-                    tyre_selection.setFixedWidth(30)
-                    tab_practice_layout.addWidget(tyre_selection,0,0,1,1)
-                    tab_practice_layout.setSpacing(0) 
-                    tab_practice_layout.setContentsMargins(0, 0, 0, 0)
+                    practice_button.setFixedHeight(30)
+                    tyre_selection = iGPeasyHelp.tyre_select(30, 30)
+                    tyre_selection.setFixedSize(QSize(30,28))
+                    practice_header_container = QWidget()
+                    practice_header_container.setFixedHeight(30)
+                    practice_header_container.setContentsMargins(0,0,0,0)
+                    practice_header_container_layout = QHBoxLayout(practice_header_container)
+                    practice_header_container_layout.setContentsMargins(0,0,0,0)
+                    practice_header_container_layout.addWidget(tyre_selection)
+                    practice_header_container_layout.addWidget(practice_button)
+                    practice_header_container.setLayout(practice_header_container_layout,)
+                    tab_practice_layout.addWidget(practice_header_container,alignment=Qt.AlignmentFlag.AlignTop)
+
+                    
+                    tab_practice_layout.setContentsMargins(0,0,0,0)
                     tab_practice.setLayout(tab_practice_layout)
                     practice_button.clicked.connect(on_try_practice)
-
+                    progress_bar = QProgressBar()
+                    progress_bar.setRange(0, 100)  # Indeterminate mode
+                    progress_bar.hide()  # Initially hidden
+                    practice_header_container_layout.addWidget(progress_bar)
+                    # Set up the timer
+                    timer = QTimer()
+                    timer.setProperty('progress_value ',0)
+                    timer.timeout.connect(update_progress)
+             
 
                     practice_combo = PseudoComboBox()
+                    #practice_combo.setFixedHeight(30)
                     
                     if account.strategy !=False:
                         if len(account.strategy[driver_index]['practice']) == 5:
                             practice_button.setDisabled(True)
-                        for row in account.strategy[driver_index]['practice']:
+                        for row in account.strategy[driver_index]['practice'][1:]:
                             row_widget = iGPeasyHelp.create_row_widget(row)
                             practice_combo.add_items(row_widget)
                             #practice_scroll_area_layout.addWidget(row_widget)
+                        if len(account.strategy[driver_index]['practice']) > 0:
+                            displayed_lap = iGPeasyHelp.create_row_widget(account.strategy[driver_index]['practice'][0])
+                            #practice_combo.add_event(displayed_lap)
+                            practice_combo.set_main_widget(displayed_lap)
                         #practice_scroll_area.setWidget(container)
                         
-                        tab_practice_layout.addWidget(practice_combo,1,0,1,2)
+                        tab_practice_layout.addWidget(practice_combo)
                     
-                    
+                    tab_practice_layout.addStretch(1)
                     strategy_tab_widget.addTab(strategy_container,"Strategy")
                     strategy_tab_widget.addTab(tab_practice,"Practice")
                     
@@ -1569,9 +1619,9 @@ class iGPeasyWindow(QMainWindow):
                     setup_container_layout.addWidget(wing_input_offset,2,2,1,1)
                     setup_container_layout.addWidget(ideal_button,3,0,1,3)
                     setup_container.setLayout(setup_container_layout)
-                    setup_container.setContentsMargins(0,0,0,0)
-                    setup_container_layout.setContentsMargins(0,0,0,0)
-                    setup_container_layout.setSpacing(0)
+                    #setup_container.setContentsMargins(0,0,0,0)
+                    #setup_container_layout.setContentsMargins(0,0,0,0)
+                    #setup_container_layout.setSpacing(0)
                     setup_container.setFixedSize(QSize(120,100)) #------------------------                 #TODO: 
                     #setup_container.setMinimumSize(QSize(120,140))
                     setup_pyqt = {'ride':ride_height_input,
@@ -1638,7 +1688,7 @@ class iGPeasyWindow(QMainWindow):
                     
                     #strategy_container = QWidget()
                     strategy_container_layout = QGridLayout()
-                    strategy_container.setFixedSize(QSize(200,100)) #---------------------------------------TODO:--strategy size
+                    strategy_container.setFixedSize(QSize(250,100)) #---------------------------------------TODO:--strategy size
                     strategy_container_layout.setSpacing(0) 
                     strategy_container_layout.setContentsMargins(0, 0, 0, 0)
                     preview_strat = display_strat(str(account.strategy[0]['raceLaps']),strategy_container_layout)
