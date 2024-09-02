@@ -49,8 +49,10 @@ class iGPeasyHelp():
         self.push_map = {'100':0,'80':1,'60':2,'40':3,'20':4}
         self.push_map_rev = {0:'100',1:'80',2:'60',3:'40',4:'20'}
         self.added_push = {0:0.02,1:0.0081,2:0,3:-0.004,4:-0.007}
-    def create_row_widget(row_data):
-
+    def create_row_widget(row_data, comments = None):
+        
+        if comments is None:
+            comments = {"suspension":"","ride_height":"","wing_levels":""}
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
         
@@ -59,9 +61,10 @@ class iGPeasyHelp():
         tyre.setPixmap(QPixmap(f"tyres/_{row_data[0]}.png"))
         tyre.setFixedSize(QSize(20,20))
         tyre.setScaledContents(True)
-        suspension = QLabel(str(row_data[1]))
-        ride = QLabel(str(row_data[2]))
-        aero = QLabel(str(row_data[3]))
+        suspension_text = comments["suspension"] if comments["suspension"] != "" else row_data[1]
+        suspension = QLabel(suspension_text)
+        ride = QLabel(f"{row_data[2]}{comments["ride_height"]}")
+        aero = QLabel(f"{row_data[3]}{comments["wing_levels"]}")
         fuel = QLabel(str(row_data[4]))
         wear = QLabel(str(row_data[5]))
         lap = QLabel(str(row_data[6]))

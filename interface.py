@@ -1,9 +1,9 @@
 import asyncio
 import json
 import os
-from PyQt6.QtWidgets import QMainWindow,QProgressBar,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
+from PyQt6.QtWidgets import QApplication,QMainWindow,QProgressBar,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont
-from PyQt6.QtCore import Qt,QSize,QTimer
+from PyQt6.QtCore import Qt,QSize,QTimer,QPoint, QRect
 import math
 from helpers import iGPeasyHelp, Section,Track,PseudoComboBox
 from setups import CarSetup
@@ -364,9 +364,12 @@ class StrategyPopup(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.strategy_popup_initialized = False
-        self.center_of_parent()
+        #self.center_of_parent()
+        
+    
     def center_of_parent(self):
         # Center the popup on the parent window
+        print(self)
         if self.parent():
             parent_rect = self.parent().frameGeometry()
             popup_rect = self.frameGeometry()
@@ -381,13 +384,41 @@ class StrategyPopup(QDialog):
         for sub_array in strategy_to_load['strat']:
             sub_array[2] = math.ceil(int(sub_array[1]) * self.fuel_lap)
 
-
         #overwrite the strategy
         self.account.strategy[self.driver_index]['strat'][:len(strategy_to_load['strat'])] = strategy_to_load['strat']
         self.strategy_popup()   
 
     def strategy_popup(self):
+        
+        button = self.sender()
+        button_pos = button.mapToGlobal(button.rect().bottomLeft())
 
+        # Get the screen geometry
+        screen = QApplication.screenAt(button_pos)
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        screen_rect = screen.availableGeometry()
+
+        # Calculate the desired position of the popup
+        popup_x = button_pos.x()
+        popup_y = button_pos.y()
+
+        # Adjust if the popup would go off-screen horizontally
+        if popup_x + self.width() > screen_rect.right():
+            popup_x = screen_rect.right() - self.width()
+
+        # Adjust if the popup would go off-screen vertically
+        if popup_y + self.height() > screen_rect.bottom():
+            popup_y = screen_rect.bottom() - self.height()
+        popup_x = max(popup_x, screen_rect.left())
+        popup_y = max(popup_y, screen_rect.top())
+        # Move the popup window to the adjusted position
+        self.move(QPoint(popup_x, popup_y))
+
+        
+        
+        
+        
         self.saved_strategies = None
         #self.center_of_parent()
         if self.saved_strategies == None:
@@ -965,6 +996,8 @@ class StrategyPopup(QDialog):
 
         self.setLayout(self.strategy_popup_initialized['main_layout'])
         
+        
+        
         self.show()
        
 
@@ -1381,7 +1414,7 @@ class iGPeasyWindow(QMainWindow):
                     res = await account.do_practice_lap(driver_index)
                     
                     if res!= -1:
-                        practice_combo.set_main_widget(iGPeasyHelp.create_row_widget(res[0]))
+                        practice_combo.set_main_widget(iGPeasyHelp.create_row_widget(res[0],account.strategy[driver_index]['setup_comment']))
                         #practice_combo.add_items(iGPeasyHelp.create_row_widget(res[0]))
                         if res[1]['hasMoreLaps'] == False:
                             practice_button.setDisabled(True)
@@ -1539,8 +1572,7 @@ class iGPeasyWindow(QMainWindow):
                             practice_combo.add_items(row_widget)
                             #practice_scroll_area_layout.addWidget(row_widget)
                         if len(account.strategy[driver_index]['practice']) > 0:
-                            displayed_lap = iGPeasyHelp.create_row_widget(account.strategy[driver_index]['practice'][0])
-                            #practice_combo.add_event(displayed_lap)
+                            displayed_lap = iGPeasyHelp.create_row_widget(account.strategy[driver_index]['practice'][0],account.strategy[driver_index]['setup_comment'])
                             practice_combo.set_main_widget(displayed_lap)
                         #practice_scroll_area.setWidget(container)
                         
@@ -1622,7 +1654,7 @@ class iGPeasyWindow(QMainWindow):
                     #setup_container.setContentsMargins(0,0,0,0)
                     #setup_container_layout.setContentsMargins(0,0,0,0)
                     #setup_container_layout.setSpacing(0)
-                    setup_container.setFixedSize(QSize(120,100)) #------------------------                 #TODO: 
+                    setup_container.setFixedSize(QSize(140,100)) #------------------------                 #TODO: 
                     #setup_container.setMinimumSize(QSize(120,140))
                     setup_pyqt = {'ride':ride_height_input,
                                   'ride_offset':ride_height_input_offset,

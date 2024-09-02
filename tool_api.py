@@ -259,6 +259,50 @@ class iGP_account:
                     
                     #to do. parse the attributes?
                     return staff
+    def handle_setup_comments(self,comment):
+        soup = BeautifulSoup(comment, 'html.parser')
+        ride_height = ""
+        suspension = ""
+        wing_levels = ""
+        try:
+            paragraph_text = soup.find('p', class_='shrinkText').get_text()
+            ride_string, wing_string = paragraph_text.split(',')
+            #print('ride',ride_string)
+           # print("wing",wing_string)
+            if "Ride height" in ride_string:
+                if "little too high" in ride_string:
+                    ride_height = "+"
+                elif "much too high" in ride_string:
+                    ride_height = "++"    
+                elif "little too low" in ride_string:
+                    ride_height = "-"
+                elif "far too low" in ride_string:
+                    ride_height = "--"
+                elif "perfect" in ride_string:
+                    ride_height = ""         
+
+            if "suspension" in paragraph_text:
+                if "right" in paragraph_text:
+                    suspension = ""
+                elif "too soft" in paragraph_text:
+                    suspension = "too soft"
+                elif "too hard" in paragraph_text:
+                    suspension = "too hard"
+
+            if "wing levels" in wing_string:
+                if "little too high" in wing_string:
+                    wing_levels = "+"
+                elif "far too high" in wing_string:
+                    wing_levels = "++"    
+                elif "little too low" in wing_string:
+                    wing_levels = "-"
+                elif "far too low" in wing_string:
+                    wing_levels = "--"    
+                elif "right" in wing_string:
+                    wing_levels = ""
+        except Exception as e:
+            print(e)     
+        return {"suspension":suspension,"ride_height":ride_height,"wing_levels":wing_levels}
     async def next_race_info(self):
         
         
@@ -307,7 +351,8 @@ class iGP_account:
                                      'totalLaps' :json_data['d1TotalLaps'],
                                      'raceId':json_data['raceId'],
                                      'tier':json_data['setupMax'],
-                                     'practice':practice_list})
+                                     'practice':practice_list,
+                                     'setup_comment':self.handle_setup_comments(json_data['d1SetupComments'])})
                     # check if 2 cars
                     if json_data['d2Pits'] != 0:
                         soup = BeautifulSoup(json_data['d2Laps'], 'html.parser')
@@ -330,7 +375,8 @@ class iGP_account:
                                      'rainStop':[json_data['d2RainStopTyre'],BeautifulSoup(json_data['d2RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
                                      'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
                                      'strat':saved_strat,
-                                     'practice':practice_list})
+                                     'practice':practice_list,
+                                     'setup_comment':self.handle_setup_comments(json_data['d2SetupComments'])})
 
                     return strategy
     async def save_research(self,attributes,points):
@@ -495,6 +541,7 @@ class iGP_account:
         await asyncio.sleep(3)
         practice_lap = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&type=lapTime&lapId={response["lapId"]}&dNum={driver_number+1}&addon=igp&ajax=1&jsReply=lapTime&csrfName=&csrfToken=")
         print(practice_lap)
+        self.strategy[driver_number]['setup_comment'] = self.handle_setup_comments(practice_lap['comments'])
         #TODO: read the driver's comment to see if the setup is good
         if practice_lap['success'] ==True:
             good_format = [[tyre,suspension_text,ride_with_offset,aero_with_offset,practice_lap['lapFuel'],practice_lap['lapTyre'],practice_lap['lapTime']],practice_lap]
