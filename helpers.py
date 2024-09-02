@@ -1,8 +1,8 @@
 
 import math
-from PyQt6.QtCore import Qt, QParallelAnimationGroup, QPropertyAnimation, QAbstractAnimation, QSize, Qt
-from PyQt6.QtWidgets import QWidget, QToolButton, QFrame, QScrollArea, QGridLayout, QSizePolicy,QComboBox, QStyledItemDelegate,QStylePainter,QWidget
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QParallelAnimationGroup, QPropertyAnimation, QAbstractAnimation, QSize, Qt, QPoint, QRect
+from PyQt6.QtWidgets import QWidget,QHBoxLayout,QLabel,QVBoxLayout, QToolButton, QFrame, QScrollArea, QGridLayout, QSizePolicy,QComboBox, QStyledItemDelegate,QStylePainter,QWidget
+from PyQt6.QtGui import QIcon,QPixmap
 class Track():
   def __init__(self,track_code,race_laps):
     #last numbers are race laps for each tier  
@@ -49,7 +49,32 @@ class iGPeasyHelp():
         self.push_map = {'100':0,'80':1,'60':2,'40':3,'20':4}
         self.push_map_rev = {0:'100',1:'80',2:'60',3:'40',4:'20'}
         self.added_push = {0:0.02,1:0.0081,2:0,3:-0.004,4:-0.007}
+    def create_row_widget(row_data, comments = None):
         
+        if comments is None:
+            comments = {"suspension":"","ride_height":"","wing_levels":""}
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        
+        row_layout.setContentsMargins(0,0,0,0)
+        tyre = QLabel()
+        tyre.setPixmap(QPixmap(f"tyres/_{row_data[0]}.png"))
+        tyre.setFixedSize(QSize(20,20))
+        tyre.setScaledContents(True)
+        suspension_text = comments["suspension"] if comments["suspension"] != "" else row_data[1]
+        suspension = QLabel(suspension_text)
+        ride = QLabel(f"{row_data[2]}{comments["ride_height"]}")
+        aero = QLabel(f"{row_data[3]}{comments["wing_levels"]}")
+        fuel = QLabel(str(row_data[4]))
+        wear = QLabel(str(row_data[5]))
+        lap = QLabel(str(row_data[6]))
+        
+
+        for item in [tyre,suspension,ride,aero,fuel,wear,lap]:
+            item.setAlignment(Qt.AlignmentFlag.AlignLeading|Qt.AlignmentFlag.AlignTop)
+            row_layout.addWidget(item)
+           
+        return row_widget    
         
     def abbreviate_number(n):
         """Convert a large number into a more readable string with a suffix."""
@@ -60,8 +85,7 @@ class iGPeasyHelp():
             magnitude += 1
             n /= 1000.0
     
-        return f'{n:.1f}{suffixes[magnitude]}'
-    
+        return f'{n:.1f}{suffixes[magnitude]}'  
     def wear_calc(tyre_eco,track):
         print(track)
         tyreWearFactors = {'SS': 2.14,'S': 1.4,'M': 1,'H': 0.78}
@@ -74,15 +98,14 @@ class iGPeasyHelp():
                     "W" : "{:.1f}".format(calculation * tyreWearFactors['M'])
                 }
     #add tyre text also
-    def tyre_select():
-        tyre_select_box = CustomComboBox()
+    def tyre_select(w,h):
+        tyre_select_box = CustomComboBox(w,h)
         for option in ['tyres/_SS.png','tyres/_S.png','tyres/_M.png','tyres/_H.png','tyres/_I.png','tyres/_W.png']:
             tyre = QIcon(option)
             tyre_select_box.addItem(tyre,'')
         #tyre_select_box.setIconSize(QSize(47,47))
-        tyre_select_box.setFixedWidth(50)
+        tyre_select_box.setFixedWidth(w)
         return tyre_select_box      
-    
     #tyre laps TRACK
     def stint_wear_calc(t,l,track):
     
@@ -184,12 +207,49 @@ class Section(QWidget):
             self.toggleButton.setArrowType(Qt.ArrowType.RightArrow)
             self.toggleAnimation.setDirection(QAbstractAnimation.Direction.Backward)
         self.toggleAnimation.start()
-   
-class CustomComboBox(QComboBox):
+class PseudoComboBox(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setIconSize(QSize(50, 50))  # Set icon size for the dropdown
-        self.setItemDelegate(CustomDelegate(self))
+        
+        self.main_layout = QHBoxLayout()
+        self.setLayout(self.main_layout)
+
+        self.dropdown = QWidget()
+        self.dropdown_layout = QVBoxLayout()
+        self.dropdown.setLayout(self.dropdown_layout)
+        self.dropdown.setWindowFlags(Qt.WindowType.Popup)
+        
+    def add_event(self,widget):
+        widget.mousePressEvent = self.show_dropdown
+
+    
+    def set_main_widget(self,widget):
+        if self.main_layout.count() > 0:
+            old_widget = self.main_layout.itemAt(0).widget()
+
+            if old_widget is not None:
+                self.main_layout.removeWidget(old_widget)
+                self.add_items(old_widget)
+        widget.mousePressEvent = self.show_dropdown
+        self.main_layout.addWidget(widget)
+    def add_items(self, item):
+        self.dropdown_layout.insertWidget(0,item)
+        
+    
+    def show_dropdown(self, event):
+        pos = self.mapToGlobal(self.pos())
+        dropdown_width = self.sizeHint().width() + 50
+        dropdown_height = self.sizeHint().height() 
+        self.dropdown.setGeometry(QRect(pos + QPoint(0, self.height()-40),QSize(dropdown_width, dropdown_height)))
+        self.dropdown.show()   
+class CustomComboBox(QComboBox):
+    def __init__(self,w,h,parent=None):
+        super().__init__(parent)
+        self.incon_size = QSize(w,h)
+        self.setIconSize(self.incon_size)
+        self.setItemDelegate(CustomDelegate(self,w,h))
+
+        
     def get_current_tyre_text(self):
         return iGPeasyHelp().tyre_map_rev[self.currentIndex()]
     def paintEvent(self, event):
@@ -200,17 +260,19 @@ class CustomComboBox(QComboBox):
         if self.currentIndex() >= 0:
             icon = self.itemIcon(self.currentIndex())
             rect = self.rect()
-            pixmap = icon.pixmap(QSize(50, 50))  # Set icon size to 30x30 when closed
+            pixmap = icon.pixmap(self.incon_size)  
             x = rect.x()
-            y = rect.y() + (rect.height() - 50) // 2
+            y = rect.y() + (rect.height() - self.incon_size.width()) // 2
             painter.drawPixmap(x, y, pixmap)
+
 class CustomDelegate(QStyledItemDelegate):
-    def __init__(self, comboBox):
+    def __init__(self, comboBox,w,h):
         super().__init__(comboBox)
         self.comboBox = comboBox
+        self.icon_size = [w,h]
     def paint(self, painter, option, index):
         # Adjust the icon size for the selected item
             # Reduce icon size to 30x30 for the selected item
             icon = index.data(Qt.ItemDataRole.DecorationRole)
-            icon = icon.pixmap(50,50)
+            icon = icon.pixmap(self.icon_size[0],self.icon_size[1])
             painter.drawPixmap(option.rect.x(), option.rect.y(), icon)   
