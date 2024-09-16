@@ -413,7 +413,8 @@ class StrategyPopup(QDialog):
         popup_x = max(popup_x, screen_rect.left())
         popup_y = max(popup_y, screen_rect.top())
         # Move the popup window to the adjusted position
-        self.move(QPoint(popup_x, popup_y))
+        
+        #self.move(QPoint(popup_x, popup_y))
 
         
         
