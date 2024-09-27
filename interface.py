@@ -1,7 +1,7 @@
 import asyncio
 import json
-import os
-from PyQt6.QtWidgets import QApplication,QMainWindow,QProgressBar,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
+import os,re
+from PyQt6.QtWidgets import QApplication,QMainWindow,QProgressBar,QMessageBox,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont
 from PyQt6.QtCore import Qt,QSize,QTimer,QPoint, QRect
 import math
@@ -1467,22 +1467,54 @@ class iGPeasyWindow(QMainWindow):
                 driver_health_value_label = QLabel(account.staff['drivers'][driver_index]['health']) #possibly button to use tokens
                 #driver_fav_track_label = QLabel(self.account.staff['drivers'][driver_index]['fav']) to do
                 #driver_skill_label = QLabel(self.account.staff['drivers'][driver_index]['skill'])to do
+               
                 tab_1_layout.addWidget(driver_name_label,0,0,1,1)
                 tab_1_layout.addWidget(driver_health_value_label,0,1,1,1)
-                tab_1.setLayout(tab_1_layout)
 
-                contract_button = QPushButton(f'Contract: {account.staff['drivers'][driver_index]['contract']}')
+                tab_1.setLayout(tab_1_layout)
+                active_contract = account.staff['drivers'][driver_index]['contract']
+                expire_in = re.findall(r'\d+\.?\d*', active_contract)
+               
+                contract_button = QPushButton(f'Contract: {active_contract}')
                 edit_skills_button = QPushButton('edit_skills')
                 train_button = QPushButton('Train')
-                tab_2_layout.addWidget(contract_button,0,0,1,2)
-                tab_2_layout.addWidget(edit_skills_button,1,0,1,1)
+                tab_2_layout.addWidget(contract_button,0,0,1,3)
+                tab_2_layout.addWidget(edit_skills_button,1,0,1,2)
                 tab_2_layout.addWidget(train_button,1,2,1,1)
 
-                
+                tab_2.setLayout(tab_2_layout)
                 driver_info_widget.addTab(tab_1,'Driver')
                 driver_info_widget.addTab(tab_2,'More')
                 #driver_info_widget.addTab(tab_3,'Practice')
                 driver_info_widget.setFixedSize(self.widget_size)                 #TODO: 
+                #TODO: make alert if driver contract expires in 3 races?
+                #driver_info_widget.tabBar().setStyleSheet("QTabBar::tab:nth-child(2) { background: red; }")
+                @asyncSlot()
+                async def show_confirm_dialog(self):
+                    dialog = QMessageBox()
+                    dialog.setIcon(QMessageBox.Icon.Question)
+                    dialog.setWindowTitle('Contract')
+                   
+                    contract = await account.driver_info(account.staff['drivers'][driver_index]['id'])
+                    dialog.setText(contract["text"])
+
+                    yes_button = dialog.addButton(QMessageBox.StandardButton.Yes)
+                    no_button = dialog.addButton(QMessageBox.StandardButton.No)
+                    #dialog.setDefaultButton(QMessageBox.StandardButton.No)
+                    if not contract["can_extend"]:
+                         yes_button.setEnabled(False)
+                    
+                    # Show the dialog and check user's response
+                    response = dialog.exec()
+
+                    if response == QMessageBox.StandardButton.Yes:
+                        await account.extend_contract_driver(account.staff["drivers"][driver_index])
+                        contract_button.setText('50 race(s)')
+                        print('contract extended')
+
+                    else:
+                        print("User canceled action.")
+                contract_button.clicked.connect(show_confirm_dialog)
                 # --- End of Section 4 ---
 
 

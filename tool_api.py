@@ -163,12 +163,17 @@ class iGP_account:
     
     async def driver_info(self,id):
         json_data = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
-        contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
-        cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
-        duration= re.findall(r'\d+(?:\.\d+)?', contract)[0]
+        #contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
+        contract = BeautifulSoup(json_data['contract'], 'html.parser').find_all(attrs={"data-tip": True})
+        text = BeautifulSoup(contract[1]['data-tip'],'html.parser').find(text=True, recursive=False)
+        can_extend = True
+        #cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
+        #duration= re.findall(r'\d+(?:\.\d+)?', contract)[0]
         bmi_color = BeautifulSoup(json_data['sBmi'], 'html.parser').span['class'][1].split('-')[1]
-        self.extra_driver_info = {'contract':{'duration':duration,'cost':cost},'attributes':{'weight':json_data['sWeight'],'bmi_color':bmi_color}}
-        return self.extra_driver_info
+        self.extra_driver_info = {'contract':{'text':text},'attributes':{'weight':json_data['sWeight'],'bmi_color':bmi_color}}
+        if 'disabled' in contract[1]['class']:
+            can_extend = False
+        return {'text':text,'can_extend':can_extend}
     
     def h_until_next_race(self):
        current_timestamp = time.time()
