@@ -9,3 +9,6 @@ Modify accounts.json with your accounts credentials then execute the main file
 ```
 py iGPeasy.py
 ```
+
+
+![python_vEZFE3OB15](https://github.com/user-attachments/assets/bbc647c9-5b73-46d2-9cad-a628b51639be)
