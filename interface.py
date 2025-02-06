@@ -1110,14 +1110,17 @@ class iGPeasyWindow(QMainWindow):
             
         await asyncio.gather(*tasks)
     async def process_repair_account(self, account):
+        
+        #second driver not working. debug this
         for driver_index,car in enumerate(account.car):
+            print(car)
             if car['parts'] != "100%":
                 res_parts = await account.request_parts_repair(car)
                 if res_parts != False:
                     account.car[0]['total_parts'] = res_parts
                     #parts are shared so it needs to update all the labels
-                    for car in account.setup_pyqt_elements:
-                        car['parts'][0].setText(str(res_parts))
+                    for car_pyqt in account.setup_pyqt_elements:
+                        car_pyqt['parts'][0].setText(str(res_parts))
                     #update the button only for the car requested   
                     account.setup_pyqt_elements[driver_index]['parts'][1].setText("100%")
                     account.setup_pyqt_elements[driver_index]['header'].setText(f"Restock in: {account.car[0]['restock']} race(s)")
@@ -1127,14 +1130,14 @@ class iGPeasyWindow(QMainWindow):
                 res_engine = await account.request_engine_repair(car)
                 if res_engine != False:
                     account.car[0]['total_engines'] = res_engine
-                    for car in account.setup_pyqt_elements:
-                        car['engine'][0].setText(str(res_engine))   
+                    for car_pyqt in account.setup_pyqt_elements:
+                        car_pyqt['engine'][0].setText(str(res_engine))   
                     account.setup_pyqt_elements[driver_index]['engine'][1].setText("100%")
                     account.setup_pyqt_elements[driver_index]['engine'][1].setDisabled(True)
             else: print('out of engines',account.username,driver_index)
 
 
-        account.pyqt_elements['daily'].setDisabled(True) 
+        #account.pyqt_elements['daily'].setDisabled(True) 
     
     @asyncSlot()
     async def add_accounts_popup(self):
@@ -1437,9 +1440,9 @@ class iGPeasyWindow(QMainWindow):
                 
                 parts_text = QLabel(str(account.car[0]['total_parts'])) #engine and parts are shared, only 1st driver has the values
                 engine_text = QLabel(str(account.car[0]['total_engines']))
-                parts_button = QPushButton(account.car[driver_index]['parts'])
+                parts_button = QPushButton(str(account.car[driver_index]['parts']))
                 parts_button.clicked.connect(repair_parts)
-                engine_button = QPushButton(account.car[driver_index]['engine'])
+                engine_button = QPushButton(str(account.car[driver_index]['engine']))
                 if account.car[driver_index]['engine'] == "100%":
                     engine_button.setDisabled(True)
                 if account.car[driver_index]['parts'] == "100%":
@@ -1687,7 +1690,7 @@ class iGPeasyWindow(QMainWindow):
                     #setup_container.setContentsMargins(0,0,0,0)
                     #setup_container_layout.setContentsMargins(0,0,0,0)
                     #setup_container_layout.setSpacing(0)
-                    setup_container.setFixedSize(QSize(140,100)) #------------------------                 #TODO: 
+                    setup_container.setFixedSize(QSize(160,100)) #------------------------                 #TODO: 
                     #setup_container.setMinimumSize(QSize(120,140))
                     setup_pyqt = {'ride':ride_height_input,
                                   'ride_offset':ride_height_input_offset,

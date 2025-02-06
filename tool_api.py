@@ -37,6 +37,7 @@ class iGP_account:
             async with self.session.post(url) as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())
+                    
                     self.manager = json_data['manager']
                     self.team = json_data['team']
                     self.notify = json_data['notify']
@@ -46,11 +47,13 @@ class iGP_account:
         except Exception as e:
             print(f"Error during fetching general info: {e}")
     async def init_account(self):
+        
         await self.async_get_general_info()
         self.car = await self.car_info()
         self.staff = await self.staff_info()
         self.strategy = await self.next_race_info()
         await self.get_sponsors()
+        
     async def research_info(self):
         research_display = await self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=research&csrfName=&csrfToken=")
         car_overview= await self.fetch_url("https://igpmanager.com/index.php?action=fetch&d=design&csrfName=&csrfToken=")
@@ -125,20 +128,23 @@ class iGP_account:
 
                     car_list = []
                     soup_engine = BeautifulSoup(json_data['c1Engine'], 'html.parser')
+                    rating_div = soup_engine.find("div", class_="ratingCircle green")
+                    engine_health = rating_div.get("data-value", "N/A")
                     soup_parts = BeautifulSoup(json_data['c1Condition'], 'html.parser')
                     soup_total_engine = BeautifulSoup(json_data['totalEngines'], 'html.parser')
                     soup_total_parts = BeautifulSoup(json_data['totalParts'], 'html.parser')
 
-                    car_list.append ({'engine':soup_engine.div.div.get('style').split(':')[1].strip(),
-                                 'parts':soup_parts.div.div.get('style').split(':')[1].strip(),
-                                 'fuel_economy':json_data['fuel_economyBar'],
-                                 'tyre_economy':json_data['tyre_economyBar'],
+                    car_list.append ({
+                                 'engine': str(engine_health),
+                                 'parts': str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A")),
+                                 'fuel_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-fuel_economy").find("span", class_="ratingVal red").get_text(strip=True)),
+                                 'tyre_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-tyre_economy").find("span", class_="ratingVal red").get_text(strip=True)),
                                  'restock':json_data['restockRaces'],
-                                 'total_engines':int(soup_total_engine.text.split(' ')[1]),
+                                 'total_engines':int(soup_total_engine.find("span", id="totalEngines").get_text(strip=True)),
                                  'total_parts':int(soup_total_parts.text.split(' ')[1]),
                                  'id':json_data['c1Id'],
                                  'car_number':1,
-                                 'repair_cost':int(re.findall(r'\d+',BeautifulSoup(BeautifulSoup(json_data['c1Btns'], 'html.parser').a['data-tip'],'html.parser').contents[0])[0])})
+                                 'repair_cost':int(BeautifulSoup(json_data['c1CarBtn'], 'html.parser').a.get_text(separator=" ", strip=True).split()[-1]) if "disabled" not in BeautifulSoup(json_data['c1CarBtn'], 'html.parser').a.get("class", []) else 0})
                     if json_data['c2Hide'] == '':
                        soup_engine = BeautifulSoup(json_data['c2Engine'], 'html.parser')
                        soup_parts = BeautifulSoup(json_data['c2Condition'], 'html.parser')
@@ -148,7 +154,7 @@ class iGP_account:
                                'parts':parts,
                                'id':json_data['c2Id'],
                                'car_number':2,
-                               'repair_cost':int(re.findall(r'\d+',BeautifulSoup(BeautifulSoup(json_data['c2Btns'], 'html.parser').a['data-tip'],'html.parser').contents[0])[0])})   
+                               'repair_cost':int(BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get_text(separator=" ", strip=True).split()[-1]) if "disabled" not in BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get("class", []) else 0})
 
                     return car_list
     async def train_driver(self,id,intensity,category):
@@ -192,30 +198,69 @@ class iGP_account:
         return income_list,bonus_list,id_list
 
     async def get_sponsors(self):
+      def parse_sponsor(html):
+        soup = BeautifulSoup(html, 'html.parser')
+        sponsors = []
+        # Loop through each sponsor table
+        for table in soup.select("table.acp"):
+            sponsor_name = table.select_one("th[colspan='2']").get_text(strip=True)  # Extract sponsor name
 
+            # Find <td> elements for each category
+            income_td = table.find("td", string=re.compile(r"Income", re.I))
+            bonus_td = table.find("td", string=re.compile(r"Bonus", re.I))
+            contract_td = next((td for td in table.find_all("td") if "Contract" in td.get_text(strip=True)), None)
+
+            # Function to extract text cleanly, removing <img> and <icon> but keeping <span>
+            def get_clean_text(td):
+                if td:
+                    # Extract value inside <span class="token-cost"> for Income
+                    token_span = td.find("span", class_="token-cost")
+                    if token_span:
+                        return token_span.get_text(strip=True)
+
+                    # Remove unnecessary elements
+                    for tag in td.find_all(["img", "i", "icon"]):
+                        tag.extract()
+                    return td.get_text(strip=True)
+                return "N/A"
+
+            income = get_clean_text(income_td.find_next_sibling("td")) if income_td else "N/A"
+            bonus = get_clean_text(bonus_td.find_next_sibling("td")) if bonus_td else "N/A"
+            contract = get_clean_text(contract_td.find_next_sibling("td")) if contract_td else "N/A"
+
+            sponsors.append({
+                "Sponsor": sponsor_name,
+                "Income": income,
+                "Bonus": bonus,
+                "Contract": contract
+            })
+        return sponsors
+            
         #json_data = await self.fetch_url("https://igpmanager.com/index.php?action=fetch&p=finances&csrfName=&csrfToken=")
-        async with self.session.get('https://igpmanager.com/index.php?action=fetch&p=finances&csrfName=&csrfToken=') as response:
+      async with self.session.get('https://igpmanager.com/index.php?action=fetch&p=finances&csrfName=&csrfToken=') as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())['vars']
                     empty_sponsor = {'income':'0','bonus':'0','expire':'0','status':False}
                     sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
+
+                    sponsors_data = parse_sponsor(json_data['sponsors'])
                     #primary
-                    if json_data['s1Name'] == '':
+                    if len(sponsors) < 1:
                         print('primary sponsor expired')
                     else:
-                        contract_soup = BeautifulSoup(json_data['s1Info'],'html.parser').find_all('td')
-                        sponsors['s1']['income'] = contract_soup[1].contents[2].text
-                        sponsors['s1']['bonus'] = contract_soup[3].text
-                        sponsors['s1']['expire'] = contract_soup[5].text
+                        #contract_soup = BeautifulSoup(json_data['s1Info'],'html.parser').find_all('td')
+                        sponsors['s1']['income'] = sponsors_data[0]['Income']
+                        sponsors['s1']['bonus'] = sponsors_data[0]['Bonus']
+                        sponsors['s1']['expire'] = sponsors_data[0]['Contract']
                         sponsors['s1']['status'] = True
                     #secondary
-                    if json_data['s2Name'] == '':
+                    if len(sponsors) < 1:
                         print('secondary sponsor expired')
                     else:
-                        contract_soup = BeautifulSoup(json_data['s2Info'],'html.parser').find_all('td')
-                        sponsors['s2']['income'] = contract_soup[1].text
-                        sponsors['s2']['bonus'] = contract_soup[3].text
-                        sponsors['s2']['expire'] = contract_soup[5].text
+                        #contract_soup = BeautifulSoup(json_data['s2Info'],'html.parser').find_all('td')
+                        sponsors['s2']['income'] = sponsors_data[1]['Income']
+                        sponsors['s2']['bonus'] = sponsors_data[1]['Bonus']
+                        sponsors['s2']['expire'] = sponsors_data[1]['Contract']
                         sponsors['s2']['status'] = True
 
                     self.sponsors = sponsors        
@@ -234,29 +279,47 @@ class iGP_account:
                     response_json = json.loads(await response.text())
                     json_data = response_json['vars'] 
                     self.next_race = response_json['nextLeagueRaceTime']
+                    
+                    soup = BeautifulSoup(json_data['drivers'], 'html.parser')
+                    driver_names = soup.select(".driverName")
+                    driver_names = [name.get_text(separator=" ", strip=True) for name in driver_names]
+
+                    driver_attributes = [tag["data-driver"] for tag in soup.select(".hoverData")]
+                    contract_ids = [td.get_text(strip=True) for td in soup.select("td[id^='nDriverC']")]
+
+                    driver_ids = []
+                    for link in soup.select("a.linkParent[href]"):
+                            href = link["href"]
+                            if "id=" in href:
+                                driver_ids.append(href.split("id=")[-1])
+
+                    salaries = [td.get_text(strip=True) for td in soup.select("td:has(img.icon-24)")]
+
                     driver = []
-                    soup_driver = BeautifulSoup(json_data['d1Name'], 'html.parser')
-                    soup_driver_info = BeautifulSoup(json_data['d1Info'], 'html.parser')
-                    attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
-                    driver.append ({'name':soup_driver.find('div').contents[4].strip(),
-                                 'health':attributes[12],
-                                 'id':re.findall(r'\d+', soup_driver.a.get('href'))[0],
-                                 'height':attributes[13],
-                                 'salary': f"{soup_driver_info.table.contents[2].contents[1].contents[0].strip()}",
-                                 'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}",
-                                 'attributes':attributes})
+                    #soup_driver = BeautifulSoup(json_data['d1Name'], 'html.parser')
+                    #soup_driver_info = BeautifulSoup(json_data['d1Info'], 'html.parser')
+                    #attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
+                    driver.append ({
+                                 'name':driver_names[0],
+                                 'health':driver_attributes[0].split(',')[12] if 0 < len(driver_attributes) else None,
+                                 'id':driver_ids[0] if 0 < len(driver_ids) else None,
+                                 'height':driver_attributes[0].split(',')[13] if 0 < len(driver_attributes) else None,
+                                 'salary': salaries[0] if 0 < len(salaries) else None,
+                                 'contract':contract_ids[0] if 0 < len(contract_ids) else None,
+                                 'attributes':driver_attributes[0].split(',')if 0 < len(driver_attributes) else None})
             
                     if json_data['d2Hide'] == '':
-                       soup_driver = BeautifulSoup(json_data['d2Name'], 'html.parser')
-                       soup_driver_info = BeautifulSoup(json_data['d2Info'], 'html.parser')
-                       attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
-                       driver.append ({'name':soup_driver.find('div').contents[4].strip(),
-                                 'health':attributes[12],
-                                 'id':re.findall(r'\d+', soup_driver.a.get('href'))[0],
-                                 'height':attributes[13],
-                                 'salary': f"{soup_driver_info.table.contents[2].contents[1].contents[0].strip()}",
-                                 'contract':f"{soup_driver_info.table.contents[1].contents[1].contents[0].strip()}",
-                                 'attributes':attributes})  
+                       #soup_driver = BeautifulSoup(json_data['d2Name'], 'html.parser')
+                       #soup_driver_info = BeautifulSoup(json_data['d2Info'], 'html.parser')
+                       #attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
+                       driver.append ({
+                                 'name':driver_names[1],
+                                 'health':driver_attributes[1].split(',')[12],
+                                 'id':driver_ids[1],
+                                 'height':driver_attributes[1].split(',')[13],
+                                 'salary': salaries[1],
+                                 'contract':contract_ids[1],
+                                 'attributes':driver_attributes[1].split(',')})  
                     
             
                     # also for the staff?
@@ -512,7 +575,7 @@ class iGP_account:
 
         
     async def request_parts_repair(self,car):
-        if car['parts'] == "100%" or self.car[0]['total_parts'] < car['repair_cost'] :
+        if car['parts'] == "100%" or int(self.car[0]['total_parts']) < int(car['repair_cost']) :
             return False
         response = await self.fetch_url(f"https://igpmanager.com/index.php?action=send&type=fix&car={car['id']}&btn=%23c{car['car_number']}PartSwap&jsReply=fix&csrfName=&csrfToken=")
         if response['update'] != False:
