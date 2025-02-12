@@ -122,18 +122,19 @@ class iGPeasyHelp():
         average = round(average, 2)
         return str(average)
     def fuel_calc(f):
-        if f >= 100:
-            return (f ** -0.0792) * 0.652
+
+        if f >= 250:
+            return (((0.6666 * f) ** -0.08434) * 0.669);   
         elif f >= 80:
-            return (f ** -0.081) * 0.657
+            return (((0.6666 * f) ** -0.08505) * 0.669)
         elif f >= 60:
-            return (f ** -0.0835) * 0.665
+            return (((0.6666 * f) ** -0.08505) * 0.669)
         elif f >= 40:
-            return (f ** -0.0854) * 0.669
+            return (((0.6666 * f) ** -0.0842) * 0.669)
         elif 20 <= f < 40:
-            return (f ** -0.0886) * 0.678
+            return (((0.6666 * f) ** -0.083) * 0.669)
         else:
-            return (f ** -0.0947) * 0.69 
+            return (((0.6666 * f) ** -0.11) * 0.725)
 
 class Section(QWidget):
     def __init__(self, title="", animationDuration=100, parent=None):
