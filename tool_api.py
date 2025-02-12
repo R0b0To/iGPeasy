@@ -118,10 +118,10 @@ class iGP_account:
             print(f"Error during login: {e}")
             return False
     async def car_info(self):
-         
-         fetch_url = "https://igpmanager.com/index.php?action=fetch&p=cars&csrfName=&csrfToken="
+         try:
+          fetch_url = "https://igpmanager.com/index.php?action=fetch&p=cars&csrfName=&csrfToken="
 
-         async with self.session.get(fetch_url) as response:
+          async with self.session.get(fetch_url) as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())['vars']
                     # if c2Hide = 'hide' the manager is in a 1 car league
@@ -137,8 +137,8 @@ class iGP_account:
                     car_list.append ({
                                  'engine': str(engine_health),
                                  'parts': str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A")),
-                                 'fuel_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-fuel_economy").find("span", class_="ratingVal red").get_text(strip=True)),
-                                 'tyre_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-tyre_economy").find("span", class_="ratingVal red").get_text(strip=True)),
+                                 'fuel_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-fuel_economy").find("span", class_="ratingVal").get_text(strip=True)),
+                                 'tyre_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-tyre_economy").find("span", class_="ratingVal").get_text(strip=True)),
                                  'restock':json_data['restockRaces'],
                                  'total_engines':int(soup_total_engine.find("span", id="totalEngines").get_text(strip=True)),
                                  'total_parts':int(soup_total_parts.text.split(' ')[1]),
@@ -157,6 +157,8 @@ class iGP_account:
                                'repair_cost':int(BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get_text(separator=" ", strip=True).split()[-1]) if "disabled" not in BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get("class", []) else 0})
 
                     return car_list
+         except Exception as e:
+            print(f"Error during car info: {e}")       
     async def train_driver(self,id,intensity,category):
         url =f"https://igpmanager.com/index.php?{id}={category}&action=send&addon=igp&type=train&focus=drivers&jsReply=train&ajax=1&intensity={intensity}&c[]=0&c[]={id}&csrfName=&csrfToken="
         async with self.session.get(url) as response:
