@@ -137,6 +137,7 @@ class ResearchPopup(QDialog):
         self.check_status = []
         self.checkboxes = []
         self.gain = []
+        self.bonus = []
         self.init_research()
     
     @asyncSlot()
@@ -232,30 +233,30 @@ class ResearchPopup(QDialog):
             save_button.clicked.connect(self.on_save_research)
             layout.addWidget(header_research)
 
-
-            header_titles = QWidget()
-            header_area = QLabel('Area')
-            header_mycar = QLabel('My Car')
-            header_best_car = QLabel('Best')
-            header_gap = QLabel('Gap')
+            header_widget = QWidget()
+            header_titles_layout = QHBoxLayout(header_widget)
+            headers = [
+                QLabel('Area'),
+                QLabel('My Car'),
+                QLabel('Bonus'),
+                QLabel('Best'),
+                QLabel('Gap')
+            ]
+        
+            for header in headers:
+                header.setFixedWidth(90)
+                header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                header_titles_layout.addWidget(header)
+            
             header_check = QCheckBox()
             header_check.checkStateChanged.connect(self.on_header_check_change)
-               
-            for item in [header_area,header_mycar,header_best_car,header_gap]:
-                    item.setFixedWidth(90)
-                    item.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            
-            header_titles_layout = QHBoxLayout()
-            header_titles_layout.addWidget(header_area)
-            header_titles_layout.addWidget(header_mycar)
-            header_titles_layout.addWidget(header_best_car)
-            header_titles_layout.addWidget(header_gap)
             header_titles_layout.addWidget(header_check)
-            header_titles.setLayout(header_titles_layout)
 
-            layout.addWidget(header_titles)
+            header_widget.setLayout(header_titles_layout)
 
-            def area_widget(name):
+            layout.addWidget(header_widget)
+
+            def attribute_widget(name):
                 container = QWidget()
                 layout_container = QHBoxLayout()
                 area = QLabel(name)
@@ -265,16 +266,18 @@ class ResearchPopup(QDialog):
                 spinbox.valueChanged.connect(self.on_points_change)
                 best_car = QLabel()
                 gap = QLabel()
+                bonus = QLabel()
                 check = QCheckBox()
                 check.checkStateChanged.connect(self.on_check_change)
                 check.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-                for item in [area,spinbox,best_car,gap]:
+                for item in [area,spinbox,best_car,gap,bonus]:
                     item.setFixedWidth(90)
                     item.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
                 layout_container.addWidget(area)
                 layout_container.addWidget(spinbox)
+                layout_container.addWidget(bonus)
                 layout_container.addWidget(best_car)
                 layout_container.addWidget(gap)
                 layout_container.addWidget(check)
@@ -298,13 +301,14 @@ class ResearchPopup(QDialog):
                 
                 self.my_car.append(spinbox)
                 self.best_car.append(best_car)
+                self.bonus.append(bonus)
                 self.gap.append(gap)
                 check.setProperty('index',len(self.checkboxes))
                 self.checkboxes.append(check)
                 
                 return container
             for i, key in enumerate(['acceleration', 'braking', 'cooling', 'downforce', 'fuel economy', 'handling', 'reliability', 'tyre economy']):
-                layout.addWidget(area_widget(key))
+                layout.addWidget(attribute_widget(key))
             layout.addWidget(save_button)
             self.initialized = layout
         self.setLayout(self.initialized)
@@ -330,9 +334,10 @@ class ResearchPopup(QDialog):
         tier = self.account.team['_tier']
         self.check_status = research_data['check']
 
+
         for i in range(8):
             my_attribute = research_data['car_design'][i] #car design is retrieved directly
-            best_car_attribute = research_data['teams_design'][i] * tier_research_map[tier] #convertion of comparison table
+            best_car_attribute = research_data['teams_design'][i]
             gaps.append(int(best_car_attribute) - int(my_attribute))
             self.my_car[i].blockSignals(True)
             self.my_car[i].setMaximum(int(research_data['max']))
@@ -342,6 +347,7 @@ class ResearchPopup(QDialog):
             self.my_car[i].blockSignals(False)
             self.best_car[i].setText(str(best_car_attribute ))
             self.gap[i].setText(str(gaps[i]))
+            self.bonus[i].setText(str(research_data['bonus'][i]))
             self.checkboxes[i].blockSignals(True)
             self.checkboxes[i].setChecked(research_data['check'][i])
             if self.check_status[i] == True:

@@ -61,14 +61,15 @@ class iGP_account:
         max_design = car_overview['dMax']
         
         car_design = [car_overview[key] for key in ['acceleration', 'braking', 'cooling', 'downforce', 'fuel_economy', 'handling', 'reliability', 'tyre_economy']]
-
-        tier_factor = 2 if max_design == 200 else 1
+        car_bonus = [car_overview[key] for key in ['accelerationBonus', 'brakingBonus', 'coolingBonus', 'downforceBonus', 'fuel_economyBonus', 'handlingBonus', 'reliabilityBonus', 'tyre_economyBonus']]
+        tier_factor = 3 if max_design == 300 else 2
 
         self.research_power = research_display['researchMaxEffect']
         # remember tier have different max 
 
         def parse_best(attribute):
-            return int(BeautifulSoup(research_display[attribute],'html.parser').img.get('style').split('calc(')[1].split('%')[0]) * tier_factor
+            value = int(BeautifulSoup(research_display[attribute],'html.parser').svg.get('style').split('calc(')[1].split('%')[0])
+            return  value * tier_factor
         
         def is_checked(key):
             if BeautifulSoup(research_display[key],'html.parser').input.get('checked') is not None:
@@ -78,7 +79,7 @@ class iGP_account:
         teams_design = [parse_best(key) for key in ['accelerationRating','brakingRating','coolingRating','downforceRating','fuel_economyRating','handlingRating','reliabilityRating','tyre_economyRating']]
         checked_design = [is_checked(key) for key in ['accelerationCheck','brakingCheck','coolingCheck','downforceCheck','fuel_economyCheck','handlingCheck','reliabilityCheck','tyre_economyCheck']]
         
-        return {'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':self.research_power,'check':checked_design}
+        return {'car_design':car_design,'teams_design':teams_design,'max':max_design,'points':points,'research_power':self.research_power,'check':checked_design, 'bonus':car_bonus}
 
     async def get_daily(self):
         url = 'https://igpmanager.com/content/misc/igp/ajax/dailyReward.php'
