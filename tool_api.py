@@ -37,7 +37,7 @@ class iGP_account:
             async with self.session.post(url) as response:
                 if response.status == 200:
                     json_data = json.loads(await response.text())
-                    
+                    self.all = json_data
                     self.manager = json_data['manager']
                     self.team = json_data['team']
                     self.notify = json_data['notify']
@@ -134,12 +134,22 @@ class iGP_account:
                     soup_parts = BeautifulSoup(json_data['c1Condition'], 'html.parser')
                     soup_total_engine = BeautifulSoup(json_data['totalEngines'], 'html.parser')
                     soup_total_parts = BeautifulSoup(json_data['totalParts'], 'html.parser')
+                    soup_car_attributes = BeautifulSoup(json_data['carAttributes'],'html.parser')
+                    
+                    #is it needed?
+                    if (self.team['_joinedLeague'] == None):
+                        fuel_economy = int(soup_car_attributes.find('span', {'id': 'ecar_fuel_economy'}).text)
+                        tyre_economy = int(soup_car_attributes.find('span', {'id': 'ecar_tyre_economy'}).text)
+                    else:
+                        fuel_economy = int(soup_car_attributes.find("div", id="wrap-fuel_economy").find("span", class_="ratingVal").get_text(strip=True))
+                        tyre_economy = int(soup_car_attributes.find("div", id="wrap-tyre_economy").find("span", class_="ratingVal").get_text(strip=True))
+
 
                     car_list.append ({
                                  'engine': str(engine_health),
                                  'parts': str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A")),
-                                 'fuel_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-fuel_economy").find("span", class_="ratingVal").get_text(strip=True)),
-                                 'tyre_economy':int(BeautifulSoup(json_data['carAttributes'],'html.parser').find("div", id="wrap-tyre_economy").find("span", class_="ratingVal").get_text(strip=True)),
+                                 'fuel_economy':fuel_economy,
+                                 'tyre_economy':tyre_economy,
                                  'restock':json_data['restockRaces'],
                                  'total_engines':int(soup_total_engine.find("span", id="totalEngines").get_text(strip=True)),
                                  'total_parts':int(soup_total_parts.text.split(' ')[1]),
@@ -147,12 +157,12 @@ class iGP_account:
                                  'car_number':1,
                                  'repair_cost':int(BeautifulSoup(json_data['c1CarBtn'], 'html.parser').a.get_text(separator=" ", strip=True).split()[-1]) if "disabled" not in BeautifulSoup(json_data['c1CarBtn'], 'html.parser').a.get("class", []) else 0})
                     if json_data['c2Hide'] == '':
-                       soup_engine = BeautifulSoup(json_data['c2Engine'], 'html.parser')
                        soup_parts = BeautifulSoup(json_data['c2Condition'], 'html.parser')
-                       engine = soup_engine.div.div.get('style').split(':')[1].strip()
-                       parts = soup_parts.div.div.get('style').split(':')[1].strip()
-                       car_list.append({'engine':engine,
-                               'parts':parts,
+                       soup_engine = BeautifulSoup(json_data['c2Engine'], 'html.parser')
+                       rating_div = soup_engine.find("div", class_="ratingCircle green")
+                       engine_health = rating_div.get("data-value", "N/A")
+                       car_list.append({'engine':str(engine_health),
+                               'parts':str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A")),
                                'id':json_data['c2Id'],
                                'car_number':2,
                                'repair_cost':int(BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get_text(separator=" ", strip=True).split()[-1]) if "disabled" not in BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get("class", []) else 0})
