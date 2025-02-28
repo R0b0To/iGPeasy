@@ -218,7 +218,37 @@ class iGP_account:
         id_list = [id.text.split('/')[-1].split('.gif')[0] for id in id_soup]
 
         return income_list,bonus_list,id_list
-
+    async def get_last_race_report(self):
+        sidebar = BeautifulSoup(self.all['vars']['league_sidebar'],'html.parser')
+        link = sidebar.find("a", href=re.compile(r"^d=result&id="))
+        if link:
+            # Extract the id using regex
+            match = re.search(r"id=(\d+)", link["href"])
+            if match:
+                race_id = match.group(1)
+                print("Extracted ID:", race_id)
+                return await self.get_report(race_id)
+            else:
+                print("ID not found")
+        else:
+            print("Link not found")
+    async def get_report(self,id):
+        json_data =  await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=result&id={id}&tier={self.team['_tier']}&tab=race&csrfName=&csrfToken=")
+        race_soup = BeautifulSoup(json_data['rResult'], "html.parser")
+        rows = race_soup.find_all("tr")
+        def parse_row(row):
+            position = row.find("td", class_="key-pos").get_text(strip=True)
+            name_and_team = row.find("td", class_="hover").get_text(separator="|", strip=True).split("|")
+            driver_name = name_and_team[0].strip()
+            team_name = name_and_team[1].strip() if len(name_and_team) > 1 else ""
+            lap_time = row.find_all("td")[2].get_text(strip=True)
+            best_lap = row.find_all("td")[3].get_text(strip=True)
+            top_speed = row.find_all("td")[4].get_text(strip=True)
+            pit_stops = row.find_all("td")[4].get_text(strip=True)
+            points = row.find_all("td")[6].get_text(strip=True)
+            return [driver_name, team_name, lap_time, best_lap,top_speed,pit_stops,points]
+        data = [parse_row(row) for row in rows]
+        return data
     async def get_sponsors(self):
       def parse_sponsor(html):
         soup = BeautifulSoup(html, 'html.parser')

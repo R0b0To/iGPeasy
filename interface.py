@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os,re
-from PyQt6.QtWidgets import QApplication,QMainWindow,QProgressBar,QMessageBox,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
+from PyQt6.QtWidgets import QTableWidgetItem,QTableWidget,QApplication,QMainWindow,QProgressBar,QMessageBox,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
 from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont
 from PyQt6.QtCore import Qt,QSize,QTimer,QPoint, QRect
 import math
@@ -365,7 +365,42 @@ class PopupDialog(QDialog):
         self.setWindowTitle("Load Strategy")
         #self.setGeometry(100, 100, 300, 200)
         self.setLayout(layout)
-
+class PopupReport(QDialog):
+    def __init__(self,parent=None):
+        super().__init__()
+        self.setWindowTitle("Report")
+        self.tableWidget = QTableWidget()
+        #self.setGeometry(100, 100, 300, 200)
+    def build_tablet(self,data):
+        layout = QVBoxLayout()
+        headers = ["Driver", "Team", "Lap Time", "Best Lap","Top Speed","Pit", "Points"]
+        self.tableWidget.setRowCount(len(data))
+        self.tableWidget.setColumnCount(7)
+        self.tableWidget.setHorizontalHeaderLabels(headers)
+        for row_idx, row_data in enumerate(data):
+            for col_idx, data_item in enumerate(row_data):
+                item = QTableWidgetItem(data_item)
+                self.tableWidget.setItem(row_idx, col_idx, item)
+        layout.addWidget(self.tableWidget)
+        self.setLayout(layout) 
+        self.tableWidget.resizeColumnsToContents()
+        table_height = self.tableWidget.sizeHint().height()
+        table_width = self.tableWidget.sizeHint().width()
+        self.resize(table_width + 20, table_height + 40)
+        
+        self.setMinimumSize(555, 300)
+        self.show()
+              
+    @asyncSlot()
+    async def load_report(self,sender):
+        self.account = sender.property('account')
+        last_report = await self.account.get_last_race_report()
+        self.build_tablet(last_report)   
+    def init_report(self):
+        layout = QVBoxLayout()
+        self.label = QLabel("Parsing HTML to show table here...", self)
+        layout.addWidget(self.label)
+        self.setLayout(layout)
 class StrategyPopup(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1033,6 +1068,7 @@ class iGPeasyWindow(QMainWindow):
         self.popup = StrategyPopup(self) # this is the popup element, passing the mainwindow as the parent
         self.popup_account = AccountPopup(self)
         self.popup_research = ResearchPopup(self)
+        self.popup_report = PopupReport(self)
         
         self.setWindowTitle("iGPeasy")
         accounts_menu = self.menuBar().addMenu('Settings')
@@ -1070,8 +1106,26 @@ class iGPeasyWindow(QMainWindow):
         self.setCentralWidget(self.accounts_container)
         if not self.isVisible():
             self.showMaximized()
-
-
+    
+    async def async_load_report(self,sender):
+            task = await self.popup_report.load_report(sender)
+            return task
+    
+    def load_report(self):
+        sender = self.sender()
+        asyncio.create_task(self.async_load_report(sender))
+    
+    
+    
+    async def open_report(self):
+                """Open the PopupReport window."""
+                sender = self.sender()
+                sender.property('report')
+                account = sender.property('account')
+                report = await account.get_last_race_report()
+                print(report)
+                report_popup = PopupReport(self)  # Keep reference to prevent garbage collection
+                report_popup.exec()
     
     @asyncSlot()
     async def get_daily_all(self):
@@ -1230,6 +1284,14 @@ class iGPeasyWindow(QMainWindow):
             else:
               reward_status = True
             
+            open_popup_button = QPushButton("last report", self)
+            open_popup_button.setProperty('report','report id')
+            open_popup_button.setProperty('account',account)
+            
+
+
+            open_popup_button.clicked.connect(self.load_report)
+
             @asyncSlot()  
             async def get_daily(self):
                 #loop = asyncio.get_event_loop()
@@ -1329,6 +1391,7 @@ class iGPeasyWindow(QMainWindow):
             misc_tab_1_layout.addWidget(img_label,1,0,1,1)
             misc_tab_1_layout.addWidget(token_label,1,0,1,1)
             misc_tab_1_layout.addWidget(daily_button,2,0,1,1)
+            misc_tab_2_layout.addWidget(open_popup_button, 0, 0)
             misc_tab_3_layout.addWidget(sponsor_button_1,1,0,1,2)
             misc_tab_3_layout.addWidget(sponsor_button_2,3,0,1,2)
             misc_tab_3_layout.addWidget(sponsor_1_select,0,0,1,2)
@@ -1340,7 +1403,7 @@ class iGPeasyWindow(QMainWindow):
             misc_tab_3.setLayout(misc_tab_3_layout)
             misc_tab_3.setContentsMargins(0,0,0,0) 
             misc_tab_widget.addTab(misc_tab_1,"*")
-            misc_tab_widget.addTab(misc_tab_2,"car")
+            misc_tab_widget.addTab(misc_tab_2,"report")
             misc_tab_widget.addTab(misc_tab_3,"sponsor")
             misc_tab_widget.setContentsMargins(0,0,0,0)
             
@@ -1682,6 +1745,10 @@ class iGPeasyWindow(QMainWindow):
                             account.strategy[driver_index]['suspension'] = suspension +1
 
                     ideal_button.clicked.connect(on_suggested_setup_clicked)
+                    
+                    ideal_button.setFixedHeight(25)
+                    suspension_selection.setFixedHeight(25)
+                    
                     setup_container_layout.addWidget(suspension_selection,0,0,1,3)
                     setup_container_layout.addWidget(ride_height_label,1,0,1,1)
                     setup_container_layout.addWidget(wing_label,2,0,1,1)
