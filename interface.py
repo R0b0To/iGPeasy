@@ -375,7 +375,6 @@ class StrategyPopup(QDialog):
     
     def center_of_parent(self):
         # Center the popup on the parent window
-        print(self)
         if self.parent():
             parent_rect = self.parent().frameGeometry()
             popup_rect = self.frameGeometry()
@@ -1119,7 +1118,6 @@ class iGPeasyWindow(QMainWindow):
         
         #second driver not working. debug this
         for driver_index,car in enumerate(account.car):
-            print(car)
             if car['parts'] != "100%":
                 res_parts = await account.request_parts_repair(car)
                 if res_parts != False:
@@ -1331,10 +1329,10 @@ class iGPeasyWindow(QMainWindow):
             misc_tab_1_layout.addWidget(img_label,1,0,1,1)
             misc_tab_1_layout.addWidget(token_label,1,0,1,1)
             misc_tab_1_layout.addWidget(daily_button,2,0,1,1)
-            misc_tab_3_layout.addWidget(sponsor_button_1,0,0,1,2)
-            misc_tab_3_layout.addWidget(sponsor_button_2,2,0,1,2)
-            misc_tab_3_layout.addWidget(sponsor_1_select,1,0,1,2)
-            misc_tab_3_layout.addWidget(sponsor_2_select,3,0,1,2)
+            misc_tab_3_layout.addWidget(sponsor_button_1,1,0,1,2)
+            misc_tab_3_layout.addWidget(sponsor_button_2,3,0,1,2)
+            misc_tab_3_layout.addWidget(sponsor_1_select,0,0,1,2)
+            misc_tab_3_layout.addWidget(sponsor_2_select,2,0,1,2)
             misc_tab_3_layout.setContentsMargins(0,0,0,0)
             
             misc_tab_1.setLayout(misc_tab_1_layout) 

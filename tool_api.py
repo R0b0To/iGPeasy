@@ -1,5 +1,5 @@
 import asyncio
-import re, json, time, aiohttp
+import re, json, time, aiohttp, html
 from bs4 import BeautifulSoup
 
 class iGP_account:
@@ -146,8 +146,8 @@ class iGP_account:
 
 
                     car_list.append ({
-                                 'engine': str(engine_health),
-                                 'parts': str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A")),
+                                 'engine': str(engine_health)+"%",
+                                 'parts': str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A"))+"%",
                                  'fuel_economy':fuel_economy,
                                  'tyre_economy':tyre_economy,
                                  'restock':json_data['restockRaces'],
@@ -162,7 +162,7 @@ class iGP_account:
                        rating_div = soup_engine.find("div", class_="ratingCircle green")
                        engine_health = rating_div.get("data-value", "N/A")
                        car_list.append({'engine':str(engine_health),
-                               'parts':str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A")),
+                               'parts':str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A"))+"%",
                                'id':json_data['c2Id'],
                                'car_number':2,
                                'repair_cost':int(BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get_text(separator=" ", strip=True).split()[-1]) if "disabled" not in BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get("class", []) else 0})
@@ -184,8 +184,17 @@ class iGP_account:
         json_data = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
         #contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
         contract = BeautifulSoup(json_data['contract'], 'html.parser').find_all(attrs={"data-tip": True})
-        text = BeautifulSoup(contract[1]['data-tip'],'html.parser').find(text=True, recursive=False)
-        can_extend = True
+        contract_link = contract[1]
+
+        if contract_link:
+            data_tip = contract_link["data-tip"]
+            decoded_tip = html.unescape(data_tip)
+            clean_soup = BeautifulSoup(decoded_tip, "html.parser")
+            for tag in clean_soup(["img", "div", "a", "icon"]):
+                tag.decompose()
+        
+            text = clean_soup.get_text(" ", strip=True)
+            can_extend = True
         #cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
         #duration= re.findall(r'\d+(?:\.\d+)?', contract)[0]
         bmi_color = BeautifulSoup(json_data['sBmi'], 'html.parser').span['class'][1].split('-')[1]
@@ -215,37 +224,32 @@ class iGP_account:
         soup = BeautifulSoup(html, 'html.parser')
         sponsors = []
         # Loop through each sponsor table
-        for table in soup.select("table.acp"):
-            sponsor_name = table.select_one("th[colspan='2']").get_text(strip=True)  # Extract sponsor name
+        for sponsor in soup.select("table.acp"):
+            sponsor_name = sponsor.select_one("th").text.strip()
 
-            # Find <td> elements for each category
-            income_td = table.find("td", string=re.compile(r"Income", re.I))
-            bonus_td = table.find("td", string=re.compile(r"Bonus", re.I))
-            contract_td = next((td for td in table.find_all("td") if "Contract" in td.get_text(strip=True)), None)
+            # Extract income
+            income_span = sponsor.select_one(".token-cost")  # Primary sponsor has token-cost class
+            if income_span:
+                income = income_span.text.strip()
+                sponsor_number = 1
+            else:
+                sponsor_number = 2
+                income_td = sponsor.select("tr")[1].select("td")[1]
+                income = income_td.text.strip()
+            # Extract bonus
+            bonus_td = sponsor.select("tr")[2].select("td")[1]
+            bonus = bonus_td.text.strip()
+            # Extract contract duration
+            contract_td = sponsor.select("tr")[3].select("td")[1]
+            contract_duration = contract_td.text.strip()
 
-            # Function to extract text cleanly, removing <img> and <icon> but keeping <span>
-            def get_clean_text(td):
-                if td:
-                    # Extract value inside <span class="token-cost"> for Income
-                    token_span = td.find("span", class_="token-cost")
-                    if token_span:
-                        return token_span.get_text(strip=True)
-
-                    # Remove unnecessary elements
-                    for tag in td.find_all(["img", "i", "icon"]):
-                        tag.extract()
-                    return td.get_text(strip=True)
-                return "N/A"
-
-            income = get_clean_text(income_td.find_next_sibling("td")) if income_td else "N/A"
-            bonus = get_clean_text(bonus_td.find_next_sibling("td")) if bonus_td else "N/A"
-            contract = get_clean_text(contract_td.find_next_sibling("td")) if contract_td else "N/A"
 
             sponsors.append({
+                "number": sponsor_number,
                 "Sponsor": sponsor_name,
                 "Income": income,
                 "Bonus": bonus,
-                "Contract": contract
+                "Contract": contract_duration
             })
         return sponsors
             
@@ -257,25 +261,25 @@ class iGP_account:
                     sponsors = {'s{}'.format(i): empty_sponsor.copy() for i in range(1, 3)}
 
                     sponsors_data = parse_sponsor(json_data['sponsors'])
-                    #primary
-                    if len(sponsors) < 1:
-                        print('primary sponsor expired')
-                    else:
-                        #contract_soup = BeautifulSoup(json_data['s1Info'],'html.parser').find_all('td')
-                        sponsors['s1']['income'] = sponsors_data[0]['Income']
-                        sponsors['s1']['bonus'] = sponsors_data[0]['Bonus']
-                        sponsors['s1']['expire'] = sponsors_data[0]['Contract']
-                        sponsors['s1']['status'] = True
-                    #secondary
-                    if len(sponsors) < 1:
-                        print('secondary sponsor expired')
-                    else:
-                        #contract_soup = BeautifulSoup(json_data['s2Info'],'html.parser').find_all('td')
-                        sponsors['s2']['income'] = sponsors_data[1]['Income']
-                        sponsors['s2']['bonus'] = sponsors_data[1]['Bonus']
-                        sponsors['s2']['expire'] = sponsors_data[1]['Contract']
-                        sponsors['s2']['status'] = True
+                    
+                    for sponsor in sponsors_data:
+                        if sponsor['number'] == 1:  # Primary sponsor
+                            sponsors['s1']['income'] = sponsor['Income']
+                            sponsors['s1']['bonus'] = sponsor['Bonus']
+                            sponsors['s1']['expire'] = sponsor['Contract']
+                            sponsors['s1']['status'] = True
+                        elif sponsor['number'] == 2:  # Secondary sponsor
+                            sponsors['s2']['income'] = sponsor['Income']
+                            sponsors['s2']['bonus'] = sponsor['Bonus']
+                            sponsors['s2']['expire'] = sponsor['Contract']
+                            sponsors['s2']['status'] = True
+                    # Check if primary sponsor is missing
+                    if not sponsors['s1']['status']:
+                        print('Primary sponsor expired')
 
+                    # Check if secondary sponsor is missing
+                    if not sponsors['s2']['status']:
+                        print('Secondary sponsor expired')
                     self.sponsors = sponsors        
 
 
@@ -610,7 +614,6 @@ class iGP_account:
         return '50 races'
     async def do_practice_lap(self,driver_number):
         #tyre = SS,S,M...
-        print('doing practice lap')
         ride_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['ride'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['ride_offset'].text())
         aero_with_offset = int(self.setup_pyqt_elements[driver_number]['setup']['wing'].text()) + int(self.setup_pyqt_elements[driver_number]['setup']['wing_offset'].text())
         tyre = self.setup_pyqt_elements[driver_number]['setup']['practice_tyre'].get_current_tyre_text()
