@@ -2,7 +2,7 @@ import asyncio
 import json
 import os,re
 from PyQt6.QtWidgets import QTableWidgetItem,QTableWidget,QApplication,QMainWindow,QProgressBar,QMessageBox,QSizePolicy,QGroupBox,QScrollArea,QTreeWidget,QTabWidget,QTreeWidgetItem,QVBoxLayout, QDialog, QLabel,QPushButton,QGridLayout,QWidget, QComboBox,QLineEdit,QRadioButton,QHBoxLayout,QSpinBox,QCheckBox
-from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont
+from PyQt6.QtGui import QPixmap,QPalette,QIntValidator,QAction,QFont,QColor
 from PyQt6.QtCore import Qt,QSize,QTimer,QPoint, QRect
 import math
 from helpers import iGPeasyHelp, Section,Track,PseudoComboBox
@@ -365,22 +365,54 @@ class PopupDialog(QDialog):
         self.setWindowTitle("Load Strategy")
         #self.setGeometry(100, 100, 300, 200)
         self.setLayout(layout)
-class PopupReport(QDialog):
+class PopupDetailReport(QDialog):
     def __init__(self,parent=None):
         super().__init__()
-        self.setWindowTitle("Report")
         self.tableWidget = QTableWidget()
-        #self.setGeometry(100, 100, 300, 200)
-    def build_tablet(self,data):
+    def build_table(self,d):
+        data = d['data']
+        self.setWindowTitle("report")
+        self.setMinimumSize(740, 300)
         layout = QVBoxLayout()
-        headers = ["Driver", "Team", "Lap Time", "Best Lap","Top Speed","Pit", "Points"]
+        headers = ["Lap", "Time", "Gap to lead", "Average speed","Pos","Tyre", "Fuel"]
         self.tableWidget.setRowCount(len(data))
         self.tableWidget.setColumnCount(7)
+        self.tableWidget.verticalHeader().setVisible(False)
         self.tableWidget.setHorizontalHeaderLabels(headers)
         for row_idx, row_data in enumerate(data):
             for col_idx, data_item in enumerate(row_data):
                 item = QTableWidgetItem(data_item)
                 self.tableWidget.setItem(row_idx, col_idx, item)
+
+        layout.addWidget(self.tableWidget)
+        self.setLayout(layout)
+
+class PopupReport(QDialog):
+    def __init__(self,parent=None):
+        super().__init__()
+       
+        self.tableWidget = QTableWidget()
+        #self.setGeometry(100, 100, 300, 200)
+    def build_table(self,d):
+        self.data = d['data']
+        race_name = d['race_name']
+        self.setWindowTitle(race_name)
+        layout = QVBoxLayout()
+        headers = ["Driver", "Team", "Lap Time", "Best Lap","Top Speed","Pit", "Points"]
+        self.tableWidget.setRowCount(len(self.data))
+        self.tableWidget.setColumnCount(7)
+        self.tableWidget.setHorizontalHeaderLabels(headers)
+        for row_idx, row_data in enumerate(self.data):
+            highlight = row_data[8]
+            for col_idx, data_item in enumerate(row_data):
+                item = QTableWidgetItem(data_item)
+                self.tableWidget.setItem(row_idx, col_idx, item)
+                if highlight:
+                    item.setBackground(QColor(255, 255, 0))  # Yellow background
+                    item.setForeground(QColor(0, 0, 0))
+        
+        self.tableWidget.cellClicked.connect(self.load_race_report)
+        
         layout.addWidget(self.tableWidget)
         self.setLayout(layout) 
         self.tableWidget.resizeColumnsToContents()
@@ -388,14 +420,32 @@ class PopupReport(QDialog):
         table_width = self.tableWidget.sizeHint().width()
         self.resize(table_width + 20, table_height + 40)
         
-        self.setMinimumSize(555, 300)
+        self.setMinimumSize(560, 300)
         self.show()
-              
-    @asyncSlot()
+    
+    
+    async def open_details(self,row):
+        #print(sender)
+        """Opens a new dialog when a row is clicked."""
+        self.detail_dialog =  PopupDetailReport()
+        race_report = await self.account.get_race_report(self.data[row][7])
+        self.detail_dialog.build_table(race_report)  
+        self.detail_dialog.show() 
+     
+    
+    async def async_load_race_report(self,row):
+            task = await self.open_details(row)
+            return task
+    
+    def load_race_report(self,row):
+        sender = self.sender()
+        asyncio.create_task(self.async_load_race_report(row))
+    
+    
     async def load_report(self,sender):
         self.account = sender.property('account')
         last_report = await self.account.get_last_race_report()
-        self.build_tablet(last_report)   
+        self.build_table(last_report)   
     def init_report(self):
         layout = QVBoxLayout()
         self.label = QLabel("Parsing HTML to show table here...", self)
@@ -1123,7 +1173,6 @@ class iGPeasyWindow(QMainWindow):
                 sender.property('report')
                 account = sender.property('account')
                 report = await account.get_last_race_report()
-                print(report)
                 report_popup = PopupReport(self)  # Keep reference to prevent garbage collection
                 report_popup.exec()
     

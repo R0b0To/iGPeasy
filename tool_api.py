@@ -84,13 +84,17 @@ class iGP_account:
     async def get_daily(self):
         url = 'https://igpmanager.com/content/misc/igp/ajax/dailyReward.php'
         async with self.session.post(url) as response:
-                if response.status == 200:
-                    json_data = json.loads(await response.text())
-                    soup = BeautifulSoup(json_data['message'], 'html.parser')
-                    #xp gain is '<span>5</span><img src="https://igpmanager.com/app/design/dr-xp.png" class="drSubImage" />'
-                    #money '<span>$16k</span><img src="https://igpmanager.com/app/design/dr-cash.png" class="drSubImage" />'
-                    #'<span>1</span><img src="https://igpmanager.com/app/design/dr-part.png" class="drSubImage" />'
-                    return soup.find('span').get_text()
+                try:
+                    if response.status == 200:
+                        json_data = json.loads(await response.text())
+                        soup = BeautifulSoup(json_data['message'], 'html.parser')
+                        #xp gain is '<span>5</span><img src="https://igpmanager.com/app/design/dr-xp.png" class="drSubImage" />'
+                        #money '<span>$16k</span><img src="https://igpmanager.com/app/design/dr-cash.png" class="drSubImage" />'
+                        #'<span>1</span><img src="https://igpmanager.com/app/design/dr-part.png" class="drSubImage" />'
+                        span = soup.find('span')
+                        return span.get_text() if span else False
+                except:
+                    return False
     def save_setup_field(self,pyqt_elements):
         self.setups = pyqt_elements
     async def async_login(self):
@@ -181,27 +185,30 @@ class iGP_account:
         self.staff = await self.staff_info()
     
     async def driver_info(self,id):
-        json_data = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
-        #contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
-        contract = BeautifulSoup(json_data['contract'], 'html.parser').find_all(attrs={"data-tip": True})
-        contract_link = contract[1]
+        try:
+            json_data = await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=driver&id={id}&csrfName=&csrfToken=")
+            #contract =  BeautifulSoup(BeautifulSoup(json_data['contract'], 'html.parser').find_all('a')[1]['data-tip'],'html.parser').text
+            contract = BeautifulSoup(json_data['contract'], 'html.parser').find_all(attrs={"data-tip": True})
+            contract_link = contract[1]
 
-        if contract_link:
-            data_tip = contract_link["data-tip"]
-            decoded_tip = html.unescape(data_tip)
-            clean_soup = BeautifulSoup(decoded_tip, "html.parser")
-            for tag in clean_soup(["img", "div", "a", "icon"]):
-                tag.decompose()
-        
-            text = clean_soup.get_text(" ", strip=True)
-            can_extend = True
-        #cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
-        #duration= re.findall(r'\d+(?:\.\d+)?', contract)[0]
-        bmi_color = BeautifulSoup(json_data['sBmi'], 'html.parser').span['class'][1].split('-')[1]
-        self.extra_driver_info = {'contract':{'text':text},'attributes':{'weight':json_data['sWeight'],'bmi_color':bmi_color}}
-        if 'disabled' in contract[1]['class']:
-            can_extend = False
-        return {'text':text,'can_extend':can_extend}
+            if contract_link:
+                data_tip = contract_link["data-tip"]
+                decoded_tip = html.unescape(data_tip)
+                clean_soup = BeautifulSoup(decoded_tip, "html.parser")
+                for tag in clean_soup(["img", "div", "a", "icon"]):
+                    tag.decompose()
+
+                text = clean_soup.get_text(" ", strip=True)
+                can_extend = True
+            #cost = re.search(r'\$\d+(\.\d+)?.', contract).group(0)
+            #duration= re.findall(r'\d+(?:\.\d+)?', contract)[0]
+            bmi_color = BeautifulSoup(json_data['sBmi'], 'html.parser').span['class'][1].split('-')[1]
+            self.extra_driver_info = {'contract':{'text':text},'attributes':{'weight':json_data['sWeight'],'bmi_color':bmi_color}}
+            if 'disabled' in contract[1]['class']:
+                can_extend = False
+            return {'text':text,'can_extend':can_extend}
+        except:
+            print('driver problem')
     
     def h_until_next_race(self):
        current_timestamp = time.time()
@@ -226,7 +233,6 @@ class iGP_account:
             match = re.search(r"id=(\d+)", link["href"])
             if match:
                 race_id = match.group(1)
-                print("Extracted ID:", race_id)
                 return await self.get_report(race_id)
             else:
                 print("ID not found")
@@ -235,20 +241,45 @@ class iGP_account:
     async def get_report(self,id):
         json_data =  await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&d=result&id={id}&tier={self.team['_tier']}&tab=race&csrfName=&csrfToken=")
         race_soup = BeautifulSoup(json_data['rResult'], "html.parser")
+        race_name = BeautifulSoup(json_data['raceName'], "html.parser").get_text(strip=True)
+        rules = BeautifulSoup(json_data['rRules'], "html.parser")
         rows = race_soup.find_all("tr")
         def parse_row(row):
-            position = row.find("td", class_="key-pos").get_text(strip=True)
+            #position = row.find("td", class_="key-pos").get_text(strip=True)
             name_and_team = row.find("td", class_="hover").get_text(separator="|", strip=True).split("|")
+            report_link = row.find("a", href=re.compile(r"^d=resultDetail"))['href']
+            is_my_team = "myTeam" in row.get("class", [])
             driver_name = name_and_team[0].strip()
             team_name = name_and_team[1].strip() if len(name_and_team) > 1 else ""
             lap_time = row.find_all("td")[2].get_text(strip=True)
             best_lap = row.find_all("td")[3].get_text(strip=True)
             top_speed = row.find_all("td")[4].get_text(strip=True)
-            pit_stops = row.find_all("td")[4].get_text(strip=True)
+            pit_stops = row.find_all("td")[5].get_text(strip=True)
             points = row.find_all("td")[6].get_text(strip=True)
-            return [driver_name, team_name, lap_time, best_lap,top_speed,pit_stops,points]
+            return [driver_name, team_name, lap_time, best_lap,top_speed,pit_stops,points,report_link,is_my_team]
         data = [parse_row(row) for row in rows]
-        return data
+        return {"data":data,"race_name":race_name}
+    async def get_race_report(self,link):
+        json_data =  await self.fetch_url(f"https://igpmanager.com/index.php?action=fetch&{link}&csrfName=&csrfToken=")
+        race_soup = BeautifulSoup(json_data['results'], "html.parser")
+        race_name = BeautifulSoup(json_data['raceName'], "html.parser").get_text(strip=True)
+        rows = race_soup.find_all("tr")[1:]
+        def parse_row(row):
+            lap = row.find("td", class_="key").get_text(strip=True)
+            is_pit= "pit" in row.get("class", [])
+            if(is_pit):
+                tyre = row.find_all("td")[1].get_text(strip=True)
+                return [lap, tyre]
+            else:
+                lap_time = row.find_all("td")[1].get_text(strip=True)
+                gap_to_lead = row.find_all("td")[2].get_text(strip=True)
+                average_speed = row.find_all("td")[3].get_text(strip=True)
+                pos = row.find_all("td")[4].get_text(strip=True)
+                tyre = row.find_all("td")[5].get_text(strip=True)
+                fuel = row.find_all("td")[6].get_text(strip=True)
+                return [lap, lap_time, gap_to_lead,average_speed,pos,tyre,fuel]
+        data = [parse_row(row) for row in rows]
+        return {"data":data,"race_name":race_name}
     async def get_sponsors(self):
       def parse_sponsor(html):
         soup = BeautifulSoup(html, 'html.parser')
@@ -318,69 +349,74 @@ class iGP_account:
         json_data = await self.fetch_url(sign_sponsor)
 
     async def staff_info(self): 
-         
-         fetch_url =(f"https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken=")
-         
-         async with self.session.get(fetch_url) as response:
-                if response.status == 200:
-                    response_json = json.loads(await response.text())
-                    json_data = response_json['vars'] 
-                    self.next_race = response_json['nextLeagueRaceTime']
-                    
-                    soup = BeautifulSoup(json_data['drivers'], 'html.parser')
-                    driver_names = soup.select(".driverName")
-                    driver_names = [name.get_text(separator=" ", strip=True) for name in driver_names]
-
-                    driver_attributes = [tag["data-driver"] for tag in soup.select(".hoverData")]
-                    contract_ids = [td.get_text(strip=True) for td in soup.select("td[id^='nDriverC']")]
-
-                    driver_ids = []
-                    for link in soup.select("a.linkParent[href]"):
-                            href = link["href"]
-                            if "id=" in href:
-                                driver_ids.append(href.split("id=")[-1])
-
-                    salaries = [td.get_text(strip=True) for td in soup.select("td:has(img.icon-24)")]
-
-                    driver = []
-                    #soup_driver = BeautifulSoup(json_data['d1Name'], 'html.parser')
-                    #soup_driver_info = BeautifulSoup(json_data['d1Info'], 'html.parser')
-                    #attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
-                    driver.append ({
-                                 'name':driver_names[0],
-                                 'health':driver_attributes[0].split(',')[12] if 0 < len(driver_attributes) else None,
-                                 'id':driver_ids[0] if 0 < len(driver_ids) else None,
-                                 'height':driver_attributes[0].split(',')[13] if 0 < len(driver_attributes) else None,
-                                 'salary': salaries[0] if 0 < len(salaries) else None,
-                                 'contract':contract_ids[0] if 0 < len(contract_ids) else None,
-                                 'attributes':driver_attributes[0].split(',')if 0 < len(driver_attributes) else None})
+         try:
+            fetch_url =(f"https://igpmanager.com/index.php?action=fetch&p=staff&csrfName=&csrfToken=")
             
-                    if json_data['d2Hide'] == '':
-                       #soup_driver = BeautifulSoup(json_data['d2Name'], 'html.parser')
-                       #soup_driver_info = BeautifulSoup(json_data['d2Info'], 'html.parser')
+            async with self.session.get(fetch_url) as response:
+                   if response.status == 200:
+                       response_json = json.loads(await response.text())
+                       json_data = response_json['vars'] 
+                       self.next_race = response_json['nextLeagueRaceTime']
+                       
+                       soup = BeautifulSoup(json_data['drivers'], 'html.parser')
+                       driver_names = soup.select(".driverName")
+                       driver_names = [name.get_text(separator=" ", strip=True) for name in driver_names]
+    
+                       driver_attributes = [tag["data-driver"] for tag in soup.select(".hoverData")]
+                       contract_ids = [td.get_text(strip=True) for td in soup.select("td[id^='nDriverC']")]
+    
+                       driver_ids = []
+                       for link in soup.select("a.linkParent[href]"):
+                               href = link["href"]
+                               if "id=" in href:
+                                   driver_ids.append(href.split("id=")[-1])
+    
+                       salaries = [td.get_text(strip=True) for td in soup.select("td:has(img.icon-24)")]
+    
+                       driver = []
+                       #soup_driver = BeautifulSoup(json_data['d1Name'], 'html.parser')
+                       #soup_driver_info = BeautifulSoup(json_data['d1Info'], 'html.parser')
                        #attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
                        driver.append ({
-                                 'name':driver_names[1],
-                                 'health':driver_attributes[1].split(',')[12],
-                                 'id':driver_ids[1],
-                                 'height':driver_attributes[1].split(',')[13],
-                                 'salary': salaries[1],
-                                 'contract':contract_ids[1],
-                                 'attributes':driver_attributes[1].split(',')})  
-                    
-            
-                    # also for the staff?
-                    staff = {'drivers':driver}
-                    
-                    #to do. parse the attributes?
-                    return staff
+                                    'name':driver_names[0],
+                                    'health':driver_attributes[0].split(',')[12] if 0 < len(driver_attributes) else None,
+                                    'id':driver_ids[0] if 0 < len(driver_ids) else None,
+                                    'height':driver_attributes[0].split(',')[13] if 0 < len(driver_attributes) else None,
+                                    'salary': salaries[0] if 0 < len(salaries) else None,
+                                    'contract':contract_ids[0] if 0 < len(contract_ids) else None,
+                                    'attributes':driver_attributes[0].split(',')if 0 < len(driver_attributes) else None})
+               
+                       if json_data['d2Hide'] == '':
+                          #soup_driver = BeautifulSoup(json_data['d2Name'], 'html.parser')
+                          #soup_driver_info = BeautifulSoup(json_data['d2Info'], 'html.parser')
+                          #attributes = soup_driver.find('span',class_='hoverData').get('data-driver').split(',')
+                          driver.append ({
+                                    'name':driver_names[1],
+                                    'health':driver_attributes[1].split(',')[12],
+                                    'id':driver_ids[1],
+                                    'height':driver_attributes[1].split(',')[13],
+                                    'salary': salaries[1],
+                                    'contract':contract_ids[1],
+                                    'attributes':driver_attributes[1].split(',')})  
+                       
+               
+                       # also for the staff?
+                       staff = {'drivers':driver}
+                       
+                       #to do. parse the attributes?
+                       return staff
+         except:
+             print('staff problem')
     def handle_setup_comments(self,comment):
         soup = BeautifulSoup(comment, 'html.parser')
         ride_height = ""
         suspension = ""
         wing_levels = ""
         try:
-            paragraph_text = soup.find('p', class_='shrinkText').get_text()
+            span_text = soup.find('p', class_='shrinkText')
+            paragraph_text = span_text.get_text() if span_text else False
+            if(paragraph_text == False):
+             return
             ride_string, wing_string = paragraph_text.split(',')
             #print('ride',ride_string)
            # print("wing",wing_string)
@@ -416,84 +452,86 @@ class iGP_account:
                 elif "right" in wing_string:
                     wing_levels = ""
         except Exception as e:
-            print(e)     
+            print('error practice comment')     
         return {"suspension":suspension,"ride_height":ride_height,"wing_levels":wing_levels}
     async def next_race_info(self):
         
-        
-        fetch_url = ("https://igpmanager.com/index.php?action=fetch&p=race&csrfName=&csrfToken=")
-        
-        async with self.session.get(fetch_url) as response:
-                if response.status == 200:
-                    json_data = json.loads(await response.text())['vars']
-        
-                    strategy = []
+        try:
+            fetch_url = ("https://igpmanager.com/index.php?action=fetch&p=race&csrfName=&csrfToken=")
 
-                    if 'd1FuelOrLaps' not in json_data:
-                        self.has_league = False
-                        return False
-                    self.has_league = True
-                    saved_strat_data = BeautifulSoup(json_data['d1FuelOrLaps'], 'html.parser')
+            async with self.session.get(fetch_url) as response:
+                    if response.status == 200:
+                        json_data = json.loads(await response.text())['vars']
 
-                    ##       stint              stint
-                    ## [[tyre,laps,fuel]],[[tyre,laps,fuel]]
-                    saved_strat = [[json_data[f'd1s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
-                    soup = BeautifulSoup(json_data['d1Laps'], 'html.parser')
-                    string = json_data['d1Laps']
-                    practice_list = []
-                    if string != '<tr><td colspan="7"></td></tr>':
-                        practice_list = [[tds[0]['class'][0][3:]] + [td.get_text() for td in tds[1:]] for tr in soup.find_all('tr') if (tds := tr.find_all('td'))]    
+                        strategy = []
 
-                    strategy.append({'rules':json.loads(json_data['rulesJson']),
-                                     'rulesJson':json_data['rulesJson'],
-                                     'advanced':json_data['d1IgnoreAdvanced'],
-                                     'advancedFuel':BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input.get('value') if BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input else '0',
-                                     'push':json_data['d1PushLevel'],
-                                     'raceLaps':json_data['raceLaps'],
-                                     'raceName':BeautifulSoup(json_data['raceName'], 'html.parser').text.strip(),
-                                     'raceTime':json_data['raceTime'],
-                                     'trackId':json_data['trackId'],
-                                     'trackCode':BeautifulSoup(json_data['raceName'], 'html.parser').img.get('class')[1][2:],
-                                     'pWeather':BeautifulSoup(json_data['pWeather'], 'html.parser').text,
-                                     'suspension':json_data['d1Suspension'],
-                                     'aero':json_data['d1Aerodynamics'],
-                                     'ride':json_data['d1Ride'],
-                                     'pits':json_data['d1Pits'],
-                                     'rainStart':[json_data['d1RainStartTyre'],BeautifulSoup(json_data['d1RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
-                                     'rainStop':[json_data['d1RainStopTyre'],BeautifulSoup(json_data['d1RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
-                                     'pushLevel':BeautifulSoup(json_data['d1PushLevel'], 'html.parser').find('option',selected=True)['value'],
-                                     'strat': saved_strat,
-                                     'totalLaps' :json_data['d1TotalLaps'],
-                                     'raceId':json_data['raceId'],
-                                     'tier':json_data['setupMax'],
-                                     'practice':practice_list,
-                                     'setup_comment':self.handle_setup_comments(json_data['d1SetupComments'])})
-                    # check if 2 cars
-                    if json_data['d2Pits'] != 0:
-                        soup = BeautifulSoup(json_data['d2Laps'], 'html.parser')
+                        if 'd1FuelOrLaps' not in json_data:
+                            self.has_league = False
+                            return False
+                        self.has_league = True
+                        saved_strat_data = BeautifulSoup(json_data['d1FuelOrLaps'], 'html.parser')
+
+                        ##       stint              stint
+                        ## [[tyre,laps,fuel]],[[tyre,laps,fuel]]
+                        saved_strat = [[json_data[f'd1s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
+                        soup = BeautifulSoup(json_data['d1Laps'], 'html.parser')
+                        string = json_data['d1Laps']
                         practice_list = []
-                        string = json_data['d2Laps']
                         if string != '<tr><td colspan="7"></td></tr>':
-                            practice_list = [[tds[0]['class'][0][3:]] + [td.get_text() for td in tds[1:]] for tr in soup.find_all('tr') if (tds := tr.find_all('td'))] 
-                        saved_strat_data = BeautifulSoup(json_data['d2FuelOrLaps'], 'html.parser')
-                        saved_strat = [[json_data[f'd2s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
-                        strategy.append({'rules':json.loads(json_data['rulesJson']),
-                                     'suspension':json_data['d2Suspension'],
-                                     'advancedFuel':BeautifulSoup(json_data['d2AdvancedFuel'], 'html.parser').input.get('value') if BeautifulSoup(json_data['d2AdvancedFuel'], 'html.parser').input else '0',
-                                     'advanced':json_data['d2IgnoreAdvanced'],
-                                     'push':json_data['d2PushLevel'],
-                                     'aero':json_data['d2Aerodynamics'],
-                                     'ride':json_data['d2Ride'],
-                                     'pits':json_data['d2Pits'],
-                                     'totalLaps' :json_data['d2TotalLaps'],
-                                     'rainStart':[json_data['d2RainStartTyre'],BeautifulSoup(json_data['d2RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
-                                     'rainStop':[json_data['d2RainStopTyre'],BeautifulSoup(json_data['d2RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
-                                     'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
-                                     'strat':saved_strat,
-                                     'practice':practice_list,
-                                     'setup_comment':self.handle_setup_comments(json_data['d2SetupComments'])})
+                            practice_list = [[tds[0]['class'][0][3:]] + [td.get_text() for td in tds[1:]] for tr in soup.find_all('tr') if (tds := tr.find_all('td'))]    
 
-                    return strategy
+                        strategy.append({'rules':json.loads(json_data['rulesJson']),
+                                         'rulesJson':json_data['rulesJson'],
+                                         'advanced':json_data['d1IgnoreAdvanced'],
+                                         'advancedFuel':BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input.get('value') if BeautifulSoup(json_data['d1AdvancedFuel'], 'html.parser').input else '0',
+                                         'push':json_data['d1PushLevel'],
+                                         'raceLaps':json_data['raceLaps'],
+                                         'raceName':BeautifulSoup(json_data['raceName'], 'html.parser').text.strip(),
+                                         'raceTime':json_data['raceTime'],
+                                         'trackId':json_data['trackId'],
+                                         'trackCode':BeautifulSoup(json_data['raceName'], 'html.parser').img.get('class')[1][2:],
+                                         'pWeather':BeautifulSoup(json_data['pWeather'], 'html.parser').text,
+                                         'suspension':json_data['d1Suspension'],
+                                         'aero':json_data['d1Aerodynamics'],
+                                         'ride':json_data['d1Ride'],
+                                         'pits':json_data['d1Pits'],
+                                         'rainStart':[json_data['d1RainStartTyre'],BeautifulSoup(json_data['d1RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
+                                         'rainStop':[json_data['d1RainStopTyre'],BeautifulSoup(json_data['d1RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
+                                         'pushLevel':BeautifulSoup(json_data['d1PushLevel'], 'html.parser').find('option',selected=True)['value'],
+                                         'strat': saved_strat,
+                                         'totalLaps' :json_data['d1TotalLaps'],
+                                         'raceId':json_data['raceId'],
+                                         'tier':json_data['setupMax'],
+                                         'practice':practice_list,
+                                         'setup_comment':self.handle_setup_comments(json_data['d1SetupComments'])})
+                        # check if 2 cars
+                        if json_data['d2Pits'] != 0:
+                            soup = BeautifulSoup(json_data['d2Laps'], 'html.parser')
+                            practice_list = []
+                            string = json_data['d2Laps']
+                            if string != '<tr><td colspan="7"></td></tr>':
+                                practice_list = [[tds[0]['class'][0][3:]] + [td.get_text() for td in tds[1:]] for tr in soup.find_all('tr') if (tds := tr.find_all('td'))] 
+                            saved_strat_data = BeautifulSoup(json_data['d2FuelOrLaps'], 'html.parser')
+                            saved_strat = [[json_data[f'd2s{i}Tyre'], saved_strat_data.find('input', {'name': f'laps{i}'}).get('value'), saved_strat_data.find('input', {'name': f'fuel{i}'}).get('value')] for i in range(1, 6)]
+                            strategy.append({'rules':json.loads(json_data['rulesJson']),
+                                         'suspension':json_data['d2Suspension'],
+                                         'advancedFuel':BeautifulSoup(json_data['d2AdvancedFuel'], 'html.parser').input.get('value') if BeautifulSoup(json_data['d2AdvancedFuel'], 'html.parser').input else '0',
+                                         'advanced':json_data['d2IgnoreAdvanced'],
+                                         'push':json_data['d2PushLevel'],
+                                         'aero':json_data['d2Aerodynamics'],
+                                         'ride':json_data['d2Ride'],
+                                         'pits':json_data['d2Pits'],
+                                         'totalLaps' :json_data['d2TotalLaps'],
+                                         'rainStart':[json_data['d2RainStartTyre'],BeautifulSoup(json_data['d2RainStartDepth'],'html.parser').find('input', {'type': 'number'})['value']],
+                                         'rainStop':[json_data['d2RainStopTyre'],BeautifulSoup(json_data['d2RainStopLap'],'html.parser').find('input', {'type': 'number'})['value']],
+                                         'pushLevel':BeautifulSoup(json_data['d2PushLevel'], 'html.parser').find('option',selected=True)['value'],
+                                         'strat':saved_strat,
+                                         'practice':practice_list,
+                                         'setup_comment':self.handle_setup_comments(json_data['d2SetupComments'])})
+
+                        return strategy
+        except:
+            print('error next race')
     async def save_research(self,attributes,points):
         await self.fetch_url(f'https://igpmanager.com/index.php?action=send&addon=igp&type=research&jsReply=research&ajax=1&researchMaxEffect={self.research_power}{attributes}&csrfName=&csrfToken=')
         await self.fetch_url(f'https://igpmanager.com/index.php?action=send&addon=igp&type=design&jsReply=design&ajax=1{points}&csrfName=&csrfToken=')
