@@ -154,7 +154,7 @@ class iGP_account:
                                  'parts': str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A"))+"%",
                                  'fuel_economy':fuel_economy,
                                  'tyre_economy':tyre_economy,
-                                 'restock':json_data['restockRaces'],
+                                 'restock':json_data.get('restockRaces', -1),
                                  'total_engines':int(soup_total_engine.find("span", id="totalEngines").get_text(strip=True)),
                                  'total_parts':int(soup_total_parts.text.split(' ')[1]),
                                  'id':json_data['c1Id'],
@@ -163,10 +163,10 @@ class iGP_account:
                     if json_data['c2Hide'] == '':
                        soup_parts = BeautifulSoup(json_data['c2Condition'], 'html.parser')
                        soup_engine = BeautifulSoup(json_data['c2Engine'], 'html.parser')
-                       rating_div = soup_engine.find("div", class_="ratingCircle green")
+                       rating_div = soup_engine.find("div", class_="ratingCircle")
                        engine_health = rating_div.get("data-value", "N/A")
                        car_list.append({'engine':str(engine_health),
-                               'parts':str(soup_parts.find("div", class_="ratingCircle green").get("data-value", "N/A"))+"%",
+                               'parts':str(soup_parts.find("div", class_="ratingCircle").get("data-value", "N/A"))+"%",
                                'id':json_data['c2Id'],
                                'car_number':2,
                                'repair_cost':int(BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get_text(separator=" ", strip=True).split()[-1]) if "disabled" not in BeautifulSoup(json_data['c2CarBtn'], 'html.parser').a.get("class", []) else 0})

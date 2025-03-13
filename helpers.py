@@ -87,9 +87,9 @@ class iGPeasyHelp():
     
         return f'{n:.1f}{suffixes[magnitude]}'  
     def wear_calc(tyre_eco,track):
-        print(track)
         tyreWearFactors = {'SS': 2.14,'S': 1.4,'M': 1,'H': 0.78}
         calculation = (1.43 * tyre_eco ** -0.0778) * (0.00364 * track.info['wear'] + 0.354) * track.info['length'] * 1.384612 * track.get_league_length_multiplier()
+        print(calculation)
         return {    "SS": "{:.1f}".format(calculation * tyreWearFactors['SS']),
                     "S" : "{:.1f}".format(calculation * tyreWearFactors['S']),
                     "M" : "{:.1f}".format(calculation * tyreWearFactors['M']),
