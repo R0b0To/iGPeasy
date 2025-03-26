@@ -896,7 +896,7 @@ class StrategyPopup(QDialog):
             self.advanced_raining.setRange(0,5)
             self.advanced_rain_stop.setSuffix(' Lap(s)')
             self.advanced_rain_stop.setRange(0,50)
-            self.advanced_suggested_fuel = QLabel('')
+            self.advanced_suggested_fuel = QPushButton('')
             adv_font = QFont()
             adv_font.setPointSize(14)
 
@@ -985,7 +985,14 @@ class StrategyPopup(QDialog):
             def on_close():
                 self.preview_slot.clear_preview()
                 self.preview_slot.generate_preview(self.account.strategy[self.driver_index])
-            
+            def update_spinbox():
+                
+                try:
+                    value = float(self.advanced_suggested_fuel.text())  
+                    rounded_value = math.ceil(value)
+                    self.advanced_fuel_nrf.setValue(rounded_value)
+                except ValueError:
+                    print("Invalid value in button text")
             self.finished.connect(on_close)
             self.save_button.clicked.connect(on_save_button)
             self.load_button.clicked.connect(on_load_button)
@@ -996,6 +1003,7 @@ class StrategyPopup(QDialog):
             self.advanced_raining.valueChanged.connect(on_advanced_rain_change)
             self.advanced_rain_stop.valueChanged.connect(on_advanced_stop_change)
             self.advanced_strat.toggleButton.toggled.connect(on_advance_toggle)
+            self.advanced_suggested_fuel.clicked.connect(update_spinbox)
             
         if self.track.track_code in self.saved_strategies:
             total_laps = int(self.account.strategy[0]['raceLaps'])
@@ -1457,7 +1465,7 @@ class iGPeasyWindow(QMainWindow):
             misc_tab_widget.setContentsMargins(0,0,0,0)
             
 
-            misc_tab_widget.setFixedSize(QSize(100,120))                             #TODO: 
+            misc_tab_widget.setFixedSize(QSize(160,120))                             #TODO: 
         # --- End of Section 1 ---
             if account.has_league:
             # --- Start of Section 2 ---
